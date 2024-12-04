@@ -10,7 +10,6 @@ import spatial_wrapper
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 def train_model():
-
     # Define the transform for CIFAR-100 (resize and normalize)
     transform = transforms.Compose([
         transforms.Resize(224),  # Resize to match the input size of ViT
@@ -54,6 +53,7 @@ def train_model():
 
             running_loss += total_loss.item()
             running_cost += cost.item()
+            newtime = datetime.datetime.now()
 
         print(f"Epoch [{epoch + 1}], Loss: {running_loss / len(train_loader)}")
         print("cost:",running_cost)
