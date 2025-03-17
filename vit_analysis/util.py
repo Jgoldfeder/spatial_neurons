@@ -160,7 +160,7 @@ def visualize_vit_architecture(model, neuron_count=192, connection_threshold=0.1
     ax.set_title("ViT Architecture Visualization\n(Neurons as Circles and Weight Connections)")
     plt.show()
 
-def plot_two_lists(list1, list2, title="My Chart", xlabel="X-axis", ylabel="Y-axis"):
+def plot_two_lists(list1, list2, title="My Chart", xlabel="X-axis", ylabel="Y-axis",label1='L1',label2='Spatial'):
     # Unzip the tuples into separate lists for x and y coordinates
     y1, x1 = zip(*list1) if list1 else ([], [])
     y2, x2 = zip(*list2) if list2 else ([], [])
@@ -169,10 +169,10 @@ def plot_two_lists(list1, list2, title="My Chart", xlabel="X-axis", ylabel="Y-ax
     plt.figure(figsize=(8, 6))
     
     # Plot the first list with blue lines and circle markers
-    plt.plot(x1, y1, color='blue', marker='o', linestyle='-', label='L1')
+    plt.plot(x1, y1, color='blue', marker='o', linestyle='-', label=label1)
     
     # Plot the second list with red lines and square markers
-    plt.plot(x2, y2, color='red', marker='s', linestyle='-', label='Spatial')
+    plt.plot(x2, y2, color='red', marker='s', linestyle='-', label=label2)
     
     # Label the axes and add a title
     plt.xlabel(xlabel)

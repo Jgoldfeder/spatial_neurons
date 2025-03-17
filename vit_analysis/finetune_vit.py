@@ -1,70 +1,25 @@
 import torch
 import numpy as np
 import timm
-from spatial_wrapper_vit import SpatialNet
+import spatial_wrapper_learnable
+import spatial_wrapper_swap
 import torch.nn as nn
 from torch.optim import Adam
 import torchvision
 import torchvision.transforms as transforms
 import sys
+import util
 
 # Set device: GPU if available, else CPU
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 mode = sys.argv[1]
+if mode not in ["baseline","L1","spatial","spatial-swap","spatial-learn","spatial-circle","L2","spatial-L2"]:
+    raise ValueError("Mode "+mode+" not recognized!")
+
 gamma = int(sys.argv[2])
 
-def count_dead_neurons(state_dict, threshold=1e-3):
-    """
-    Counts dead neurons in 2D weight matrices.
-    
-    A dead neuron is defined as one for which all incoming weights (i.e. all elements in its row)
-    have an absolute value below the given threshold.
-    
-    Parameters:
-        state_dict (dict): The state dictionary loaded from the model.
-        threshold (float): The threshold below which a weight is considered "dead".
-        
-    Returns:
-        dead_neuron_counts (dict): Dictionary with layer names as keys and number of dead neurons as values.
-        total_dead (int): Total count of dead neurons.
-        total_neurons (int): Total count of neurons examined.
-    """
-    dead_neuron_counts = {}
-    total_neurons = 0
-    total_dead = 0
-    
-    for name, param in state_dict.items():
-        # Check if the parameter is a weight matrix (2D tensor) from a linear layer
-        if "weight" in name and param.ndim == 2:
-            # Detach and convert to a NumPy array for easier analysis
-            weight = param.detach().cpu().numpy()
-            out_features = weight.shape[0]  # each row corresponds to one neuron
-            layer_dead = 0
-            for i in range(out_features):
-                # Check if every incoming weight for this neuron is below the threshold
-                if (abs(weight[i]) < threshold).all():
-                    layer_dead += 1
-            dead_neuron_counts[name] = layer_dead
-            total_neurons += out_features
-            total_dead += layer_dead
-    
-    return dead_neuron_counts, total_dead, total_neurons
 
-def print_percent_below(arr, t):
-    """Prints the percentage of values in 'arr' that are below the threshold t."""
-    percent = np.mean(arr < t) * 100
-    print(f"Percentage of values below {t}: {percent:.2f}%")
-
-def print_percentiles(weights, model_name):
-    """Print percentiles of absolute weights"""
-    abs_weights = np.abs(weights)
-    percentiles = range(10, 101, 10)
-    print(f"\nPercentiles for {model_name} (absolute values):")
-    for p in percentiles:
-        value = np.percentile(abs_weights, p)
-        print(f"P{p}: {value:.6f}")
-    print_percent_below(abs_weights,0.001)
 
 # Define normalization constants for CIFAR100 (approximate values)
 mean = [0.5071, 0.4867, 0.4408]
@@ -98,47 +53,63 @@ train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size,
 test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=batch_size,
                                           shuffle=False, num_workers=2)
 
-# Load a pretrained ResNet50 and modify the final fully connected layer for 100 classes
+# Load a pretrained model and modify the final fully connected layer for 100 classes
 #model = timm.create_model('vit_base_patch16_224', pretrained=True)
 model = timm.create_model('vit_tiny_patch16_224', pretrained=True)
 num_features = model.head.in_features
 model.head = nn.Linear(num_features, 100)
 
-if "spatial" in mode:
-    A = 20.0
-    B = 20.0
-    D = 1.0 
-    # Create a spatially wrapped ResNet50 (for example, with 100 output classes).
-    model = SpatialNet(model,A, B, D)
+# spatial parameters
+A = 20.0
+B = 20.0
+D = 1.0 
+if mode in ["spatial","spatial-swap","spatial-L2","spatial-circle"]:
+    use_circle = mode in ["spatial-circle"]
+    model = spatial_wrapper_swap.SpatialNet(model,A, B, D,circle=use_circle)
+if mode in ['spatial-learn']:
+    model = spatial_wrapper_learnable.SpatialNet(model,A, B, D)
+
 model = model.to(device)
 
 # Define loss function and optimizer
 criterion = nn.CrossEntropyLoss()
 optimizer = Adam(model.parameters(), lr=1e-4)
 
-# Training loop for 50 epochs
+if mode in ['spatial-learn']:
+    # we want the positions to have a higher learning rate than the weights
+    optimizer = Adam([
+        {'params': model.model.parameters(), 'lr': 1e-4},  
+        {'params': model.value_distance_matrices.parameters(), 'lr': 1e-2},
+        {'params': model.linear_distance_matrices.parameters(), 'lr': 1e-2},    
+    ])
+
+# Training loop for 10 epochs
 num_epochs = 10
 for epoch in range(num_epochs):
+    if mode in ['spatial-learn']:
+        # make sure neurons do not collapse or explode
+        print(model.get_stats())
+    if mode in ["spatial-swap"]:
+        # optimize via swapping
+        model.optimize()
+
     model.train()
     running_loss = 0.0
     correct = 0
     total = 0
-    #batch_count=0
     for inputs, labels in train_loader:
-        #print(batch_count,len(train_loader))
-        #batch_count+=1
         inputs, labels = inputs.to(device), labels.to(device)
         
         # Forward pass
         outputs = model(inputs)
         loss = criterion(outputs, labels)
-        if "L1" in mode:
+        if mode in ["L1"]:
             l1_norm = sum(p.abs().mean() for p in model.parameters())/len([p for p in model.parameters()])
             loss+=l1_norm*gamma
-            #print(l1_norm*1000)
-        if mode=="spatial":
-            loss += model.get_cost()*gamma
-            #print( model.get_cost()*1300)
+        if mode in ["spatial","spatial-swap","spatial-L2","spatial-learn","spatial-circle"]:
+            use_quadratic = mode in ["spatial-L2"]
+            loss += model.get_cost(quadratic=use_quadratic)*gamma
+
         # Backward pass and optimization
         optimizer.zero_grad()
         loss.backward()
@@ -172,18 +143,16 @@ for epoch in range(num_epochs):
 
     print(f"Epoch [{epoch+1}/{num_epochs}] | Train Loss: {train_loss:.4f} | Train Acc: {train_acc:.2f}% "
           f"| Test Loss: {test_loss:.4f} | Test Acc: {test_acc:.2f}%")
-if "spatial" in mode:
+    
+if mode in ["spatial","spatial-swap","spatial-L2","spatial-learn","spatial-circle"]:
+    # extract the model from the wrapper
     model=model.model
+
 state_dict=model.state_dict()
-if "spatial" in mode:
-    torch.save(state_dict,"./models/spatial/"+mode +"_"+str(gamma)+".pt")
-if "baseline" in mode:
-    torch.save(state_dict,"./models/baseline/"+mode +"_"+str(gamma)+".pt")
-if "L1" in mode:
-    torch.save(state_dict,"./models/L1/"+mode +"_"+str(gamma)+".pt")
+torch.save(state_dict,"./models/"+mode+"/"+mode +"_"+str(gamma)+".pt")
 
 threshold = 1e-2  # Set your desired threshold
-dead_counts, total_dead, total_neurons = count_dead_neurons(state_dict, threshold)
+dead_counts, total_dead, total_neurons = util.count_dead_neurons(state_dict, threshold)
 
 print(f"Total neurons examined: {total_neurons}")
 print(f"Total dead neurons: {total_dead}")
@@ -216,4 +185,4 @@ print("\nOverall Weight Statistics (regularized weights only):")
 print(f"Std: {np.std(all_weights):.6f}")
 
 # Print percentiles
-print_percentiles(all_weights, mode)
+util.print_percentiles(all_weights, mode)
