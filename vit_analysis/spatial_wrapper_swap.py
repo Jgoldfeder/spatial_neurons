@@ -1,6 +1,57 @@
 
 import numpy as np
 from scipy.optimize import linear_sum_assignment
+import torch
+import torch.nn as nn
+import os
+import math
+
+def create_clustered_connectivity(i, o, k):
+    """
+    Create a connectivity matrix with shape (o, i) based on k contiguous clusters.
+    
+    Parameters:
+      i (int): number of input neurons.
+      o (int): number of output neurons.
+      k (int): number of clusters.
+      
+    Returns:
+      np.ndarray: A binary connectivity matrix of shape (o, i) where each cluster of input neurons 
+                  is fully connected (all ones) to the corresponding cluster of output neurons.
+                  
+    The neurons are divided as evenly as possible into k contiguous clusters.
+    For example, if i=10, o=20 and k=5, the inputs are divided into groups of 2 neurons
+    and the outputs into groups of 4 neurons. Each group of 2 inputs connects to one group of 4 outputs.
+    """
+    # Create an o x i matrix initialized with zeros.
+    matrix = np.ones((o, i), dtype=int)
+    
+    # Determine cluster sizes for the inputs.
+    base_in = i // k
+    remainder_in = i % k
+    input_cluster_sizes = [base_in + 1 if idx < remainder_in else base_in for idx in range(k)]
+    
+    # Determine cluster sizes for the outputs.
+    base_out = o // k
+    remainder_out = o % k
+    output_cluster_sizes = [base_out + 1 if idx < remainder_out else base_out for idx in range(k)]
+    
+    # Define start indices for input and output clusters.
+    in_start = 0
+    out_start = 0
+    
+    # Fill the connectivity matrix block-by-block.
+    for cluster in range(k):
+        in_end = in_start + input_cluster_sizes[cluster]
+        out_end = out_start + output_cluster_sizes[cluster]
+        # Connect the entire block corresponding to the current cluster.
+        matrix[out_start:out_end, in_start:in_end] = 0
+        
+        # Update indices for the next cluster.
+        in_start = in_end
+        out_start = out_end
+        
+    return torch.tensor(matrix)
 
 def alternative_hungarian_optimization(W, C, max_iter=100, tol=1e-6, verbose=False):
     """
@@ -66,13 +117,6 @@ def alternative_hungarian_optimization(W, C, max_iter=100, tol=1e-6, verbose=Fal
     return torch.tensor(C_new)
 
 
-
-import torch
-import torch.nn as nn
-
-import os
-import torch
-import math
 
 def compute_distance_matrix_circle(N, M, A, B, D, cache_dir="cache"):
     """
@@ -146,7 +190,7 @@ def compute_distance_matrix(N, M, A, B, D,cache_dir="cache"):
     return distance_matrix
 
 class SpatialNet(nn.Module):
-    def __init__(self, model, A, B, D, spatial_cost_scale=1,device="cuda",circle=False):
+    def __init__(self, model, A, B, D, spatial_cost_scale=1,device="cuda",circle=False,cluster=-1):
         super(SpatialNet, self).__init__()
         self.model = model
         self.linear_layers = []
@@ -157,6 +201,7 @@ class SpatialNet(nn.Module):
         self.B = B
         self.D = D
         self.circle = circle
+        self.cluster=cluster
         self.spatial_cost_scale = spatial_cost_scale  # Scaling factor for spatial cost
         self.device=device
         self._extract_layers(model)
@@ -167,7 +212,9 @@ class SpatialNet(nn.Module):
                 self.linear_layers.append(layer)
                 N = layer.in_features
                 M = layer.out_features
-                if self.circle:
+                if self.cluster > 0:
+                    distance_matrix = create_clustered_connectivity(N,M,self.cluster)
+                elif self.circle:
                     distance_matrix = compute_distance_matrix_circle(N, M, self.A, self.B, self.D)
                 else:
                     distance_matrix = compute_distance_matrix(N, M, self.A, self.B, self.D)
@@ -182,7 +229,9 @@ class SpatialNet(nn.Module):
 
                 N = value_proj_weight.size(1)
                 M = value_proj_weight.size(0)
-                if self.circle:
+                if self.cluster > 0:
+                    distance_matrix = create_clustered_connectivity(N,M,self.cluster)
+                elif self.circle:
                     distance_matrix = compute_distance_matrix_circle(N, M, self.A, self.B, self.D)
                 else:
                     distance_matrix = compute_distance_matrix(N, M, self.A, self.B, self.D)

@@ -14,7 +14,7 @@ import util
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 mode = sys.argv[1]
-if mode not in ["baseline","L1","spatial","spatial-swap","spatial-learn","spatial-circle","L2","spatial-L2"]:
+if mode not in ["baseline","L1","spatial","spatial-swap","spatial-learn","spatial-circle","L2","spatial-L2","cluster10","cluster40","cluster400"]:
     raise ValueError("Mode "+mode+" not recognized!")
 
 gamma = int(sys.argv[2])
@@ -63,9 +63,16 @@ model.head = nn.Linear(num_features, 100)
 A = 20.0
 B = 20.0
 D = 1.0 
-if mode in ["spatial","spatial-swap","spatial-L2","spatial-circle"]:
+if mode in ["spatial","spatial-swap","spatial-L2","spatial-circle","cluster10","cluster40","cluster400"]:
     use_circle = mode in ["spatial-circle"]
-    model = spatial_wrapper_swap.SpatialNet(model,A, B, D,circle=use_circle)
+    cluster=-1
+    if mode in ["cluster10"]:
+        cluster=10
+    if mode in ["cluster40"]:
+        cluster=40    
+    if mode in ["cluster400"]:
+        cluster=400
+    model = spatial_wrapper_swap.SpatialNet(model,A, B, D,circle=use_circle,cluster=cluster)
 if mode in ['spatial-learn']:
     model = spatial_wrapper_learnable.SpatialNet(model,A, B, D)
 
@@ -106,7 +113,7 @@ for epoch in range(num_epochs):
         if mode in ["L1"]:
             l1_norm = sum(p.abs().mean() for p in model.parameters())/len([p for p in model.parameters()])
             loss+=l1_norm*gamma
-        if mode in ["spatial","spatial-swap","spatial-L2","spatial-learn","spatial-circle"]:
+        if mode in ["spatial","spatial-swap","spatial-L2","spatial-learn","spatial-circle","cluster10","cluster40","cluster400"]:
             use_quadratic = mode in ["spatial-L2"]
             loss += model.get_cost(quadratic=use_quadratic)*gamma
 
@@ -144,7 +151,7 @@ for epoch in range(num_epochs):
     print(f"Epoch [{epoch+1}/{num_epochs}] | Train Loss: {train_loss:.4f} | Train Acc: {train_acc:.2f}% "
           f"| Test Loss: {test_loss:.4f} | Test Acc: {test_acc:.2f}%")
     
-if mode in ["spatial","spatial-swap","spatial-L2","spatial-learn","spatial-circle"]:
+if mode in ["spatial","spatial-swap","spatial-L2","spatial-learn","spatial-circle","cluster10","cluster40","cluster400"]:
     # extract the model from the wrapper
     model=model.model
 
@@ -185,4 +192,4 @@ print("\nOverall Weight Statistics (regularized weights only):")
 print(f"Std: {np.std(all_weights):.6f}")
 
 # Print percentiles
-util.print_percentiles(all_weights, mode)
+util.print_percentiles(all_weights)

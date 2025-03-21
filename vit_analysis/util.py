@@ -4,6 +4,12 @@ import torch
 import timm
 import matplotlib.pyplot as plt
 
+import torchvision
+import torchvision.transforms as transforms
+import torch.nn as nn
+from sklearn.metrics import precision_score, recall_score, f1_score, roc_auc_score
+from sklearn.preprocessing import label_binarize
+import torchvision.transforms.functional as TF
 def count_dead_neurons(state_dict, threshold=1e-3):
     """
     Counts dead neurons in 2D weight matrices.
@@ -158,6 +164,37 @@ def visualize_vit_architecture(model, neuron_count=192, connection_threshold=0.1
     ax.set_ylim(-0.1, 1.1)
     ax.axis('off')
     ax.set_title("ViT Architecture Visualization\n(Neurons as Circles and Weight Connections)")
+    plt.show()
+
+def plot_lists(data_lists, title="My Chart", xlabel="X-axis", ylabel="Y-axis", labels=None):
+    """
+    Plots any number of lists. Each dataset should be a list of (y, x) tuples.
+
+    Parameters:
+        *data_lists: Variable number of lists, each a list of (y, x) tuples.
+        title (str): Title of the chart.
+        xlabel (str): Label for the x-axis.
+        ylabel (str): Label for the y-axis.
+        labels (list): Optional list of labels for each dataset.
+    """
+    plt.figure(figsize=(8, 6))
+    
+    # If no labels provided, generate default ones.
+    if labels is None:
+        labels = [f"L{i+1}" for i in range(len(data_lists))]
+    
+    for i, data in enumerate(data_lists):
+        if data:
+            # Unzip the tuples into y and x coordinates.
+            y, x = zip(*data)
+        else:
+            x, y = [], []
+        plt.plot(x, y, marker='o', linestyle='-', label=labels[i] if i < len(labels) else None)
+    
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
+    plt.title(title)
+    plt.legend()
     plt.show()
 
 def plot_two_lists(list1, list2, title="My Chart", xlabel="X-axis", ylabel="Y-axis",label1='L1',label2='Spatial'):
@@ -319,3 +356,267 @@ def load_and_analyze_weights(state_dict):
     # Print percentiles
     print_percentiles(all_weights)
     return all_weights
+
+
+def evaluate_metrics(model):
+    # Define normalization constants for CIFAR100 (approximate values)
+    mean = [0.5071, 0.4867, 0.4408]
+    std = [0.2675, 0.2565, 0.2761]
+
+    # Data augmentation and normalization for training, and normalization for testing
+    train_transform = transforms.Compose([
+        transforms.Resize(256),                # Resize to a bit larger than final crop
+        transforms.RandomCrop(224),            # Random crop to 224x224
+        transforms.RandomHorizontalFlip(),     # Data augmentation
+        transforms.ToTensor(),
+        transforms.Normalize(mean, std)
+    ])
+
+    test_transform = transforms.Compose([
+        transforms.Resize(256),
+        transforms.CenterCrop(224),
+        transforms.ToTensor(),
+        transforms.Normalize(mean, std)
+    ])
+
+    # Load CIFAR100 dataset
+    train_dataset = torchvision.datasets.CIFAR100(root='./data', train=True,
+                                                download=True, transform=train_transform)
+    test_dataset = torchvision.datasets.CIFAR100(root='./data', train=False,
+                                                download=True, transform=test_transform)
+
+    batch_size = 128
+    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size,
+                                            shuffle=True, num_workers=2)
+    test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=batch_size,
+                                            shuffle=False, num_workers=2)
+
+    def evaluate(model, dataloader, device):
+        """
+        Evaluate the model on the given dataloader.
+        
+        Returns:
+            total_loss: Average loss over the dataset.
+            accuracy: Fraction of correctly predicted samples.
+            precision: Macro-averaged precision.
+            recall: Macro-averaged recall.
+            f1: Macro-averaged F1 score.
+            rocauc: Macro-averaged ROC AUC (one-vs-rest).
+        """
+        model.eval()
+        loss_fn = nn.CrossEntropyLoss()
+        running_loss = 0.0
+        
+        all_preds = []
+        all_probs = []
+        all_targets = []
+        
+        with torch.no_grad():
+            for inputs, labels in dataloader:
+                inputs, labels = inputs.to(device), labels.to(device)
+                outputs = model(inputs)
+                loss = loss_fn(outputs, labels)
+                running_loss += loss.item() * inputs.size(0)
+                
+                # Get predicted classes and probability distribution
+                _, preds = torch.max(outputs, 1)
+                probs = nn.functional.softmax(outputs, dim=1)
+                
+                all_preds.extend(preds.cpu().numpy())
+                all_targets.extend(labels.cpu().numpy())
+                all_probs.append(probs.cpu().numpy())
+        
+        total_loss = running_loss / len(dataloader.dataset)
+        accuracy = np.mean(np.array(all_preds) == np.array(all_targets))
+        
+        # Calculate macro-averaged precision, recall, and F1 score.
+        precision = precision_score(all_targets, all_preds, average='macro', zero_division=0)
+        recall = recall_score(all_targets, all_preds, average='macro', zero_division=0)
+        f1 = f1_score(all_targets, all_preds, average='macro', zero_division=0)
+        
+        # Concatenate probability predictions from all batches
+        all_probs = np.concatenate(all_probs, axis=0)
+        
+        # For ROC AUC, we need to binarize the target labels.
+        all_targets_binarized = label_binarize(all_targets, classes=np.arange(100))
+        try:
+            rocauc = roc_auc_score(all_targets_binarized, all_probs, average='macro', multi_class='ovr')
+        except Exception as e:
+            print("ROC AUC calculation error:", e)
+            rocauc = float('nan')
+        
+        return total_loss, accuracy, precision, recall, f1, rocauc
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model.to(device)
+    # Evaluate on training data
+    train_loss, train_acc, train_precision, train_recall, train_f1, train_rocauc = evaluate(model, train_loader, device)
+    # Evaluate on test data
+    test_loss, test_acc, test_precision, test_recall, test_f1, test_rocauc = evaluate(model, test_loader, device)
+    return train_loss, train_acc, train_precision, train_recall, train_f1, train_rocauc, test_loss, test_acc, test_precision, test_recall, test_f1, test_rocauc
+
+
+
+
+
+def fgsm_attack(model, loss_fn, images, labels, epsilon):
+    """
+    Applies the Fast Gradient Sign Method (FGSM) attack on a batch of images.
+    
+    Args:
+        model (torch.nn.Module): The model to attack.
+        loss_fn (callable): The loss function used to calculate the gradients.
+        images (torch.Tensor): Batch of images.
+        labels (torch.Tensor): True labels corresponding to the images.
+        epsilon (float): The perturbation magnitude.
+    
+
+    """
+    # Set requires_grad attribute for the input images.
+    images.requires_grad = True
+
+    # Forward pass.
+    outputs = model(images)
+    loss = loss_fn(outputs, labels)
+
+    # Zero all existing gradients.
+    model.zero_grad()
+    # Compute gradients of loss w.r.t. images.
+    loss.backward()
+
+    # Collect the sign of the gradients.
+    grad_sign = images.grad.sign()
+    # Create perturbed images by adjusting each pixel.
+    perturbed_images = images + epsilon * grad_sign
+
+    perturbed_images = torch.clamp(
+        perturbed_images, images.min().item(), images.max().item()
+    )
+    return perturbed_images
+
+def evaluate_robust_accuracy(model, epsilon, batch_size=128, num_workers=2, device=None):
+    """
+    Loads the CIFAR-100 test dataloader, applies the FGSM attack using the provided epsilon,
+    and returns the robust accuracy of the model on the adversarial examples.
+    
+    Args:
+        model (torch.nn.Module): The pretrained model to evaluate.
+        epsilon (float): The perturbation magnitude for the FGSM attack.
+        batch_size (int, optional): Batch size for the dataloader. Default is 128.
+        num_workers (int, optional): Number of subprocesses for data loading. Default is 2.
+        device (torch.device, optional): The device to run the evaluation on. If None,
+                                         uses GPU if available.
+    
+    Returns:
+        float: Robust accuracy on adversarial examples generated by FGSM.
+    """
+    if device is None:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    # Define the transformation and load CIFAR-100 test set.
+    mean = [0.5071, 0.4867, 0.4408]
+    std = [0.2675, 0.2565, 0.2761]
+
+    test_transform = transforms.Compose([
+        transforms.Resize(256),
+        transforms.CenterCrop(224),
+        transforms.ToTensor(),
+        transforms.Normalize(mean, std)
+    ])
+
+    # Load CIFAR100 dataset
+    test_dataset = torchvision.datasets.CIFAR100(root='./data', train=False,
+                                                download=True, transform=test_transform)
+    batch_size = 128
+    test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=batch_size,
+                                            shuffle=False, num_workers=2)
+
+    model.to(device)
+    model.eval()
+    loss_fn = nn.CrossEntropyLoss()
+    
+    correct = 0
+    total = 0
+
+    # Loop over the test set batches.
+    for images, labels in test_loader:
+        images, labels = images.to(device), labels.to(device)
+        # Generate adversarial examples.
+        adv_images = fgsm_attack(model, loss_fn, images, labels, epsilon)
+        # Re-classify the perturbed images.
+        outputs = model(adv_images)
+        # Get predictions.
+        _, predicted = outputs.max(1)
+        total += labels.size(0)
+        correct += (predicted == labels).sum().item()
+
+    robust_acc = correct / total
+    return robust_acc
+
+
+
+def synthetic_transform(img):
+    """
+    Applies a fixed synthetic shift to the input PIL image.
+    Here we rotate by 15° and reduce brightness by 10%.
+    """
+    # Rotate the image by 15 degrees.
+    img = TF.rotate(img, angle=15)
+    # Adjust brightness (brightness_factor < 1 reduces brightness).
+    img = TF.adjust_brightness(img, brightness_factor=0.9)
+    return img
+
+def evaluate_on_synthetic_shifts(model, batch_size=128, num_workers=2, device=None):
+    """
+    Loads CIFAR-100 test set with a synthetic shift applied, evaluates the model,
+    and returns the accuracy.
+
+    Args:
+        model (torch.nn.Module): The trained model to evaluate.
+        batch_size (int): Batch size for the dataloader.
+        num_workers (int): Number of worker processes for data loading.
+        device (torch.device, optional): Device on which to perform evaluation.
+
+    Returns:
+        float: Accuracy of the model on the synthetically shifted CIFAR-100 test set.
+    """
+    if device is None:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    # CIFAR-100 normalization values.
+    mean = [0.5071, 0.4867, 0.4408]
+    std = [0.2675, 0.2565, 0.2761]
+
+    # Define the transform pipeline including the synthetic shift.
+    test_transform = transforms.Compose([
+        transforms.Resize(256),
+        transforms.CenterCrop(224),
+        transforms.Lambda(synthetic_transform),  # Apply synthetic shift here.
+        transforms.ToTensor(),
+        transforms.Normalize(mean, std)
+    ])
+
+    # Load CIFAR-100 test dataset.
+    test_dataset = torchvision.datasets.CIFAR100(
+        root='./data', train=False, download=True, transform=test_transform
+    )
+    test_loader = torch.utils.data.DataLoader(
+        test_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers
+    )
+
+    model.to(device)
+    model.eval()
+    correct = 0
+    total = 0
+
+    with torch.no_grad():
+        for images, labels in test_loader:
+            images, labels = images.to(device), labels.to(device)
+            outputs = model(images)
+            _, predicted = outputs.max(1)
+            total += labels.size(0)
+            correct += (predicted == labels).sum().item()
+
+    accuracy = correct / total
+    return accuracy
+
