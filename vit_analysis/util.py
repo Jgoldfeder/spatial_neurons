@@ -10,6 +10,8 @@ import torch.nn as nn
 from sklearn.metrics import precision_score, recall_score, f1_score, roc_auc_score
 from sklearn.preprocessing import label_binarize
 import torchvision.transforms.functional as TF
+
+
 def count_dead_neurons(state_dict, threshold=1e-3):
     """
     Counts dead neurons in 2D weight matrices.
@@ -228,7 +230,7 @@ import torchvision
 import torchvision.transforms as transforms
 from torch.utils.data import DataLoader
 
-def evaluate_vit_pruning(vit, threshold, device=None, batch_size=128):
+def evaluate_vit_pruning(vit, threshold, device=None, batch_size=128,cifar100=True):
     # Set device
     if device is None:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -246,9 +248,12 @@ def evaluate_vit_pruning(vit, threshold, device=None, batch_size=128):
         transforms.Normalize(mean, std)
     ])
 
-    test_dataset = torchvision.datasets.CIFAR100(root='./data', train=False,
+    if cifar100:
+        test_dataset = torchvision.datasets.CIFAR100(root='./data', train=False,
                                                 download=True, transform=test_transform)
-
+    else:
+        test_dataset = torchvision.datasets.CIFAR10(root='./data', train=False,
+                                                download=True, transform=test_transform)       
     batch_size = 128
     test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=batch_size,
                                             shuffle=False, num_workers=2)
@@ -358,7 +363,7 @@ def load_and_analyze_weights(state_dict):
     return all_weights
 
 
-def evaluate_metrics(model):
+def evaluate_metrics(model,cifar100=True):
     # Define normalization constants for CIFAR100 (approximate values)
     mean = [0.5071, 0.4867, 0.4408]
     std = [0.2675, 0.2565, 0.2761]
@@ -380,18 +385,23 @@ def evaluate_metrics(model):
     ])
 
     # Load CIFAR100 dataset
-    train_dataset = torchvision.datasets.CIFAR100(root='./data', train=True,
-                                                download=True, transform=train_transform)
-    test_dataset = torchvision.datasets.CIFAR100(root='./data', train=False,
-                                                download=True, transform=test_transform)
-
+    if cifar100:
+        train_dataset = torchvision.datasets.CIFAR100(root='./data', train=True,
+                                                    download=True, transform=train_transform)
+        test_dataset = torchvision.datasets.CIFAR100(root='./data', train=False,
+                                                    download=True, transform=test_transform)
+    else:
+        train_dataset = torchvision.datasets.CIFAR10(root='./data', train=True,
+                                                    download=True, transform=train_transform)
+        test_dataset = torchvision.datasets.CIFAR10(root='./data', train=False,
+                                                    download=True, transform=test_transform)
     batch_size = 128
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size,
                                             shuffle=True, num_workers=2)
     test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=batch_size,
                                             shuffle=False, num_workers=2)
 
-    def evaluate(model, dataloader, device):
+    def evaluate(model, dataloader, device,cifar100=True):
         """
         Evaluate the model on the given dataloader.
         
@@ -438,7 +448,11 @@ def evaluate_metrics(model):
         all_probs = np.concatenate(all_probs, axis=0)
         
         # For ROC AUC, we need to binarize the target labels.
-        all_targets_binarized = label_binarize(all_targets, classes=np.arange(100))
+        if cifar100:
+            num_classes=100
+        else:
+            num_classes=10
+        all_targets_binarized = label_binarize(all_targets, classes=np.arange(num_classes))
         try:
             rocauc = roc_auc_score(all_targets_binarized, all_probs, average='macro', multi_class='ovr')
         except Exception as e:
@@ -450,9 +464,9 @@ def evaluate_metrics(model):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
     # Evaluate on training data
-    train_loss, train_acc, train_precision, train_recall, train_f1, train_rocauc = evaluate(model, train_loader, device)
+    train_loss, train_acc, train_precision, train_recall, train_f1, train_rocauc = evaluate(model, train_loader, device,cifar100)
     # Evaluate on test data
-    test_loss, test_acc, test_precision, test_recall, test_f1, test_rocauc = evaluate(model, test_loader, device)
+    test_loss, test_acc, test_precision, test_recall, test_f1, test_rocauc = evaluate(model, test_loader, device,cifar100)
     return train_loss, train_acc, train_precision, train_recall, train_f1, train_rocauc, test_loss, test_acc, test_precision, test_recall, test_f1, test_rocauc
 
 
@@ -474,9 +488,9 @@ def fgsm_attack(model, loss_fn, images, labels, epsilon):
     """
     # Set requires_grad attribute for the input images.
     images.requires_grad = True
-
     # Forward pass.
     outputs = model(images)
+
     loss = loss_fn(outputs, labels)
 
     # Zero all existing gradients.
@@ -494,7 +508,7 @@ def fgsm_attack(model, loss_fn, images, labels, epsilon):
     )
     return perturbed_images
 
-def evaluate_robust_accuracy(model, epsilon, batch_size=128, num_workers=2, device=None):
+def evaluate_robust_accuracy(model, epsilon, batch_size=128, num_workers=2, device=None,cifar100=True):
     """
     Loads the CIFAR-100 test dataloader, applies the FGSM attack using the provided epsilon,
     and returns the robust accuracy of the model on the adversarial examples.
@@ -525,8 +539,12 @@ def evaluate_robust_accuracy(model, epsilon, batch_size=128, num_workers=2, devi
     ])
 
     # Load CIFAR100 dataset
-    test_dataset = torchvision.datasets.CIFAR100(root='./data', train=False,
-                                                download=True, transform=test_transform)
+    if cifar100==True:
+        test_dataset = torchvision.datasets.CIFAR100(root='./data', train=False,
+                                                    download=True, transform=test_transform)
+    else:
+        test_dataset = torchvision.datasets.CIFAR10(root='./data', train=False,
+                                                  download=True, transform=test_transform)
     batch_size = 128
     test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=batch_size,
                                             shuffle=False, num_workers=2)
@@ -566,7 +584,7 @@ def synthetic_transform(img):
     img = TF.adjust_brightness(img, brightness_factor=0.9)
     return img
 
-def evaluate_on_synthetic_shifts(model, batch_size=128, num_workers=2, device=None):
+def evaluate_on_synthetic_shifts(model, batch_size=128, num_workers=2, device=None,cifar100=True):
     """
     Loads CIFAR-100 test set with a synthetic shift applied, evaluates the model,
     and returns the accuracy.
@@ -597,9 +615,14 @@ def evaluate_on_synthetic_shifts(model, batch_size=128, num_workers=2, device=No
     ])
 
     # Load CIFAR-100 test dataset.
-    test_dataset = torchvision.datasets.CIFAR100(
-        root='./data', train=False, download=True, transform=test_transform
-    )
+    if cifar100:
+        test_dataset = torchvision.datasets.CIFAR100(
+            root='./data', train=False, download=True, transform=test_transform
+        )
+    else:
+        test_dataset = torchvision.datasets.CIFAR10(
+            root='./data', train=False, download=True, transform=test_transform
+        )
     test_loader = torch.utils.data.DataLoader(
         test_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers
     )
