@@ -171,7 +171,7 @@ for threshold in [0.01,0.001,0.0001]:
 for p in [100,90,80,70,60,50,40,30,20,10,5,3,2,1]:
     model.load_state_dict(state_dict)
     threshold = util.compute_pruning_threshold_cpu(model,p)
-    initial_acc, percent_small, final_acc = util.evaluate_pruning(model, threshold=threshold,cifar100=cifar100)
+    initial_acc, percent_small, final_acc = util.evaluate_pruning(model, threshold=threshold,dataset_name=dataset_name)
     dead_neuron_counts, total_dead, total_neurons = util.count_dead_neurons(state_dict,threshold)   
     # this next version also includes input neurons, and considers both incoming weights or outoing weights     
     dead_neuron_indices, unique_dead, unique_total_neurons = util.count_unique_dead_neurons(state_dict,threshold)       
@@ -190,11 +190,6 @@ for p in [100,90,80,70,60,50,40,30,20,10,5,3,2,1]:
         "modularity" : modularity,
     }
 
-dataset_name
-mode
-gamma
-model_name
-
 if mode == "cluster":
     mode = mode + str(cluster)
 
@@ -207,3 +202,5 @@ os.makedirs("./models/"+path, exist_ok=True)
 torch.save(state_dict,"./models/"+path + file_name +".pt")
 with open("./metrics/"+path+ file_name + '.pkl', 'wb') as f:
     pickle.dump(results, f)
+
+print(results)
