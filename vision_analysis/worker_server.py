@@ -73,8 +73,8 @@ def thread_main(thread_id):
 
 if __name__ == "__main__":
 
-    datasets = ["STL10","DTD","birds","cars196","flowers102","food101","aircraft","tiny_imagenet","caltech101","cifar10","cifar100", "pets", "svhn","dogs"]
-    models = ['vgg19','vit_tiny_patch16_224','vit_base_patch16_224','resnet50','resnet101','efficientnet_b0','visformer_small','swin_base_patch4_window7_224','mobilenetv3_small_100','densenet121']
+    datasets = ['cifar100','cifar10',"pets","tiny_imagenet",'svhn','birds','caltech101','DTD']
+    models = ["vit_tiny_patch16_224","resnet50"]
 
     for name in datasets:
         print("loading.... ",name)
