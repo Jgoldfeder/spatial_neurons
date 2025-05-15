@@ -120,9 +120,9 @@ node_2 = {
 
 nodes = {
     "local" : local,
-    "0" : node_0,
-    "1" : node_1,
-    "2" : node_2,
+    # "0" : node_0,
+    # "1" : node_1,
+    # "2" : node_2,
 
 }
 gpus = []  

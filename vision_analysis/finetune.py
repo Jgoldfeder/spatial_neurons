@@ -24,7 +24,10 @@ gamma = int(sys.argv[2])
 dataset_name = sys.argv[3]
 model_name = sys.argv[4]
 
-train_loader, test_loader, num_classes = classification_util.get_data_loaders(dataset_name)
+batchsize=128
+if model_name in ['visformer_small','swin_base_patch4_window7_224']:
+    batchsize=64
+train_loader, test_loader, num_classes = classification_util.get_data_loaders(dataset_name,batchsize=batchsize)
 model = classification_util.get_model(model_name,num_classes,pretrained=True)
 
 modes = [
@@ -78,13 +81,21 @@ if mode in ['spatial-learn','spatial-both']:
 num_batches = len(train_loader)
 num_epochs = min(50,max(10,4000//num_batches))
 
+def get_epochs(num_epochs: int) -> list[int]:
+    # We need 10 points: i = 0..9, step = (num_epochs-1)/9
+    step = (num_epochs - 1) / 9
+    # round() to get the nearest integer each time
+    return [int(round(i * step)) for i in range(10)]
+swap_epochs = get_epochs(num_epochs)
+
 for epoch in range(num_epochs):
     if mode in ['spatial-learn','spatial-both']:
         # make sure neurons do not collapse or explode
         print(model.get_stats())
     if mode in ["spatial-swap",'spatial-both']:
         # optimize via swapping
-        model.optimize()
+        if epoch in swap_epochs:
+            model.optimize()
 
     model.train()
     running_loss = 0.0
@@ -170,7 +181,10 @@ for threshold in [0.01,0.001,0.0001]:
 
 for p in [100,90,80,70,60,50,40,30,20,10,5,3,2,1]:
     model.load_state_dict(state_dict)
-    threshold = util.compute_pruning_threshold_cpu(model,p)
+    try:
+        threshold = util.compute_pruning_threshold_cpu(model,p)
+    except:
+        continue
     initial_acc, percent_small, final_acc = util.evaluate_pruning(model, threshold=threshold,dataset_name=dataset_name)
     dead_neuron_counts, total_dead, total_neurons = util.count_dead_neurons(state_dict,threshold)   
     # this next version also includes input neurons, and considers both incoming weights or outoing weights     

@@ -142,25 +142,32 @@ class TFDSPytorchWrapper(torch.utils.data.Dataset):
 mean = [0.485, 0.456, 0.406]
 std = [0.229, 0.224, 0.225]
 
+def f(x):
+    if x.shape[0] == 1:
+        return x.repeat(3,1,1)
+    return x
+
+
 # Data augmentation and normalization for training, and normalization for testing
 train_transform = transforms.Compose([
     transforms.Resize(256),                # Resize to a bit larger than final crop
     transforms.RandomCrop(224),            # Random crop to 224x224
     transforms.RandomHorizontalFlip(),     # Data augmentation
     transforms.ToTensor(),
-    transforms.Normalize(mean, std)
+    transforms.Normalize(mean, std),
+    transforms.Lambda(lambda x: f(x)),
 ])
 
 test_transform = transforms.Compose([
     transforms.Resize(256),
     transforms.CenterCrop(224),
     transforms.ToTensor(),
-    transforms.Normalize(mean, std)
+    transforms.Normalize(mean, std),
+    transforms.Lambda(lambda x: f(x)),
 ])
 
 
-def get_data_loaders(name):
-    batch_size=128
+def get_data_loaders(name,batch_size=128):
     datasets = ["STL10","DTD","birds","cars196","flowers102","food101","aircraft","tiny_imagenet","caltech101","cifar10","cifar100", "pets", "svhn","dogs"]
     if name not in datasets:
         raise ValueError("invalid dataset name, choose from", datasets)
@@ -193,7 +200,7 @@ def get_data_loaders(name):
                                                     download=True, transform=train_transform)
         test_dataset = torchvision.datasets.OxfordIIITPet(root='./data', split="test",
                                                     download=True, transform=test_transform)
-        batch_size = 128
+        batch_size = batch_size
         train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size,
                                                 shuffle=True, num_workers=2)
         test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=batch_size,
@@ -205,7 +212,7 @@ def get_data_loaders(name):
         test_dataset = torchvision.datasets.CIFAR100(root='./data', train=False,
                                                     download=True, transform=test_transform)
 
-        batch_size = 128
+        batch_size = batch_size
         train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size,
                                                 shuffle=True, num_workers=2)
         test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=batch_size,
@@ -217,7 +224,7 @@ def get_data_loaders(name):
         test_dataset = torchvision.datasets.CIFAR10(root='./data', train=False,
                                                     download=True, transform=test_transform)
 
-        batch_size = 128
+        batch_size = batch_size
         train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size,
                                                 shuffle=True, num_workers=2)
         test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=batch_size,
@@ -235,14 +242,14 @@ def get_data_loaders(name):
         test_dataset = TFDSPytorchWrapper(tfds_test, transform=test_transform)
 
 
-        batch_size = 128
+        batch_size = batch_size
         train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size,
                                                 shuffle=True, num_workers=2)
         test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=batch_size,
                                                 shuffle=False, num_workers=2)
 
     if name == "tiny_imagenet":
-        dataset = TinyImageNetDataset(root="data", batch_size=128, image_size=224)
+        dataset = TinyImageNetDataset(root="data", batch_size=batch_size, image_size=224)
         train_loader, test_loader = dataset.get_loaders()
 
     if name == "aircraft":
@@ -251,40 +258,40 @@ def get_data_loaders(name):
         test_dataset = torchvision.datasets.FGVCAircraft(root='./data', split='test', download=True,
                                     transform=test_transform)
 
-        train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=128, shuffle=True, num_workers=2)
-        test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=128, shuffle=False, num_workers=2)
+        train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=2)
+        test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=2)
 
     if name== "food101":
         train_dataset = torchvision.datasets.Food101(root='./data', split='train', download=True, transform=train_transform)
         test_dataset = torchvision.datasets.Food101(root='./data', split='test', download=True, transform=test_transform)
 
         # === Wrap in DataLoaders ===
-        train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=128, shuffle=True, num_workers=2)
-        test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=128, shuffle=False, num_workers=2)
+        train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=2)
+        test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=2)
 
     if name== "DTD":
         train_dataset = torchvision.datasets.DTD(root='./data', split='train', download=True, transform=train_transform)
         test_dataset = torchvision.datasets.DTD(root='./data', split='test', download=True, transform=test_transform)
 
         # === Wrap in DataLoaders ===
-        train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=128, shuffle=True, num_workers=2)
-        test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=128, shuffle=False, num_workers=2)
+        train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=2)
+        test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=2)
     
     if name== "STL10":
         train_dataset = torchvision.datasets.STL10(root='./data', split='train', download=True, transform=train_transform)
         test_dataset = torchvision.datasets.STL10(root='./data', split='test', download=True, transform=test_transform)
 
         # === Wrap in DataLoaders ===
-        train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=128, shuffle=True, num_workers=2)
-        test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=128, shuffle=False, num_workers=2)
+        train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=2)
+        test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=2)
 
     if name == "flowers102":    
         train_dataset = torchvision.datasets.Flowers102(root='./data', split='train', download=True, transform=train_transform)
         test_dataset = torchvision.datasets.Flowers102(root='./data', split='test', download=True, transform=test_transform)
 
         # === Wrap in DataLoaders ===
-        train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=128, shuffle=True, num_workers=2)
-        test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=128, shuffle=False, num_workers=2)
+        train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=2)
+        test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=2)
 
     if name == "cars196":
         dataset = load_dataset("tanganke/stanford_cars")
@@ -307,7 +314,7 @@ def get_data_loaders(name):
         test_dataset = TFDSPytorchWrapper(tfds_test, transform=test_transform)
 
 
-        batch_size = 128
+        batch_size = batch_size
         train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size,
                                                 shuffle=True, num_workers=2)
         test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=batch_size,

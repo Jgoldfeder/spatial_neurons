@@ -16,8 +16,64 @@ from torch.utils.data import Dataset
 import numpy as np
 import igraph as ig
 import torch.nn as nn
-
+import io
+from PIL import Image
 import classification_util
+
+from PIL import Image
+
+def make_image_grid(image_grid, bg_color=(255, 255, 255)):
+    """
+    Given a 2D list of PIL Images, arrange them in a grid and return the combined image.
+
+    Parameters:
+        image_grid (list of list of PIL.Image): shape (N rows × M cols)
+        bg_color (tuple): background color as an RGB triplet (default white)
+
+    Returns:
+        PIL.Image: the combined grid image
+    """
+    if not image_grid or not image_grid[0]:
+        raise ValueError("image_grid must be a non-empty 2D list")
+
+    # Number of rows and columns
+    n_rows = len(image_grid)
+    n_cols = max(len(row) for row in image_grid)
+
+    # Compute max widths of each column and max heights of each row
+    col_widths = [0] * n_cols
+    row_heights = [0] * n_rows
+    for i, row in enumerate(image_grid):
+        for j, img in enumerate(row):
+            w, h = img.size
+            if w > col_widths[j]:
+                col_widths[j] = w
+            if h > row_heights[i]:
+                row_heights[i] = h
+
+    # Total size
+    total_width = sum(col_widths)
+    total_height = sum(row_heights)
+
+    # Create the output image
+    grid_img = Image.new("RGB", (total_width, total_height), color=bg_color)
+
+    # Paste each image
+    y_offset = 0
+    for i, row in enumerate(image_grid):
+        x_offset = 0
+        for j in range(n_cols):
+            if j < len(row):
+                img = row[j]
+                # center image in its cell
+                w, h = img.size
+                x_pad = (col_widths[j] - w) // 2
+                y_pad = (row_heights[i] - h) // 2
+                grid_img.paste(img, (x_offset + x_pad, y_offset + y_pad))
+            x_offset += col_widths[j]
+        y_offset += row_heights[i]
+
+    return grid_img
 
 
 def model_modularity(model, threshold: float = 0.0) -> float:
@@ -261,9 +317,11 @@ def visualize_vit_architecture(model, neuron_count=192, connection_threshold=0.1
     ax.set_title("ViT Architecture Visualization\n(Neurons as Circles and Weight Connections)")
     plt.show()
 
-def plot_lists(data_lists, title="My Chart", xlabel="X-axis", ylabel="Y-axis", labels=None,log=False):
+
+def plot_lists(data_lists, title="My Chart", xlabel="X-axis", ylabel="Y-axis", labels=None, log=False):
     """
-    Plots any number of lists. Each dataset should be a list of (y, x) tuples.
+    Plots any number of lists and returns the plot as a PIL Image.
+    Each dataset should be a list of (y, x) tuples.
 
     Parameters:
         *data_lists: Variable number of lists, each a list of (y, x) tuples.
@@ -271,27 +329,41 @@ def plot_lists(data_lists, title="My Chart", xlabel="X-axis", ylabel="Y-axis", l
         xlabel (str): Label for the x-axis.
         ylabel (str): Label for the y-axis.
         labels (list): Optional list of labels for each dataset.
+        log (bool): Whether to use a logarithmic y-axis.
+    Returns:
+        PIL.Image.Image: The rendered plot.
     """
-    plt.figure(figsize=(8, 6))
+    # Create figure
+    fig, ax = plt.subplots(figsize=(8, 6))
     
-    # If no labels provided, generate default ones.
+    # Default labels if none given
     if labels is None:
         labels = [f"L{i+1}" for i in range(len(data_lists))]
     
+    # Plot each series
     for i, data in enumerate(data_lists):
         if data:
-            # Unzip the tuples into y and x coordinates.
-            y, x = zip(*data)
+            y_vals, x_vals = zip(*data)
         else:
-            x, y = [], []
-        plt.plot(x, y, marker='o', linestyle='-', label=labels[i] if i < len(labels) else None)
+            x_vals, y_vals = [], []
+        ax.plot(x_vals, y_vals, marker='o', linestyle='-', label=(labels[i] if i < len(labels) else None))
+    
     if log:
-        plt.yscale('log')   # logarithmic y-axis
-    plt.xlabel(xlabel)
-    plt.ylabel(ylabel)
-    plt.title(title)
-    plt.legend()
-    plt.show()
+        ax.set_yscale('log')
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+    ax.set_title(title)
+    ax.legend()
+    
+    # Save to buffer
+    buf = io.BytesIO()
+    fig.savefig(buf, format='png', bbox_inches='tight')
+    buf.seek(0)
+    plt.close(fig)
+    
+    # Open with PIL and return
+    img = Image.open(buf)
+    return img
 
 def plot_two_lists(list1, list2, title="My Chart", xlabel="X-axis", ylabel="Y-axis",label1='L1',label2='Spatial'):
     # Unzip the tuples into separate lists for x and y coordinates
