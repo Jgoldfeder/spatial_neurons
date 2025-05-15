@@ -6,6 +6,8 @@ import queue
 import subprocess
 import os
 import os.path
+import classification_util
+
 import pickle
 # 1) Configuration (keep your existing definitions)
 API_KEY = "super-secret-key-123"
@@ -70,6 +72,20 @@ def thread_main(thread_id):
         print(f"[Thread {thread_id}] Report response: {resp}")
 
 if __name__ == "__main__":
+
+    datasets = ["STL10","DTD","birds","cars196","flowers102","food101","aircraft","tiny_imagenet","caltech101","cifar10","cifar100", "pets", "svhn","dogs"]
+    models = ['vgg19','vit_tiny_patch16_224','vit_base_patch16_224','resnet50','resnet101','efficientnet_b0','visformer_small','swin_base_patch4_window7_224','mobilenetv3_small_100','densenet121']
+
+    for name in datasets:
+        print("loading.... ",name)
+        train_loader, test_loader, num_classes = classification_util.get_data_loaders(name)
+        print(len(train_loader),len(test_loader),num_classes)
+
+    train_loader, test_loader, num_classes = classification_util.get_data_loaders("cifar100")
+    for name in models:
+        print(name)
+        model = classification_util.get_model(name,num_classes=100,pretrained=True)
+
     threads = []
     NUM_THREADS = 8
 
