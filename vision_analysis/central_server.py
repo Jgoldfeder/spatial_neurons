@@ -14,9 +14,10 @@ VALID_API_KEY = os.environ.get("API_KEY", "super-secret-key-123")
 task_queue = Queue()
 lock = Lock()
 
+commands = []
 
-datasets = ["pets"]
-models = ["resnet50"]
+datasets = ['cifar100','cifar10',"pets","tiny_imagenet",'svhn','birds','caltech101','DTD']
+models = ["vit_tiny_patch16_224","resnet50"]
 modes = {
     "baseline": [0],
     "L1" : [50, 200, 500, 1000, 2000, 5000, 10000, 20000, 60000, 120000, 300000],
@@ -26,7 +27,6 @@ modes = {
     "spatial-both": [40,140, 325, 650, 1300, 2600, 4000, 8000, 16000, 32000, 64000],
 }
 
-commands = []
 for dataset in datasets:
     for model in models:
         for mode, gammas in modes.items():
@@ -42,6 +42,26 @@ for dataset in datasets:
                     commands.append(command) 
                 else:
                     print("already ran", dataset, model, mode, gamma)
+
+datasets = ['cifar100']
+models = ['vit_base_patch16_224','resnet101','efficientnet_b0','vgg19','visformer_small','swin_base_patch4_window7_224','mobilenetv3_small_100','densenet121']
+for dataset in datasets:
+    for model in models:
+        for mode, gammas in modes.items():
+            for gamma in gammas:
+                path = f"./metrics/{dataset}/{mode}/{mode}:{model}:{gamma}.pkl"  
+                if not os.path.exists(path):
+                    command = {
+                        "dataset" : dataset,
+                        "mode" : mode,
+                        "model" : model,
+                        "gamma" : gamma,
+                    }
+                    commands.append(command) 
+                else:
+                    print("already ran", dataset, model, mode, gamma)
+
+                    
 
 for command in commands:
     task_queue.put(command)
@@ -93,10 +113,10 @@ def report():
     path = dataset_name +"/" + mode + "/" 
     file_name = mode + ":" +model_name+":"+str(gamma)
 
-    # os.makedirs("./metrics/"+path, exist_ok=True)
-    # os.makedirs("./models/"+path, exist_ok=True)
-    # with open("./metrics/"+path+ file_name + '.pkl', 'wb') as f:
-    #     pickle.dump(data, f)
+    os.makedirs("./metrics/"+path, exist_ok=True)
+    os.makedirs("./models/"+path, exist_ok=True)
+    with open("./metrics/"+path+ file_name + '.pkl', 'wb') as f:
+        pickle.dump(data, f)
 
 
     if not data or not isinstance(data, dict):
