@@ -27,7 +27,7 @@ model_name = sys.argv[4]
 batchsize=128
 if model_name in ['visformer_small','swin_base_patch4_window7_224']:
     batchsize=64
-train_loader, test_loader, num_classes = classification_util.get_data_loaders(dataset_name,batchsize=batchsize)
+train_loader, test_loader, num_classes = classification_util.get_data_loaders(dataset_name,batch_size=batchsize)
 model = classification_util.get_model(model_name,num_classes,pretrained=True)
 
 modes = [
