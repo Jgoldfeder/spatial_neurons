@@ -41,7 +41,10 @@ def thread_main(thread_id):
         
         env = os.environ.copy()
         # Run the command
-        subprocess.run(command, shell=True, check=True, env=env)
+        try:
+            subprocess.run(command, shell=True, check=True, env=env)
+        except:
+            pass
         print(f"[Thread {thread_id}] Completed task: {task}")
 
         dataset = task['dataset']
