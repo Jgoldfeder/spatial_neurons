@@ -154,16 +154,16 @@ train_transform = transforms.Compose([
     transforms.RandomCrop(224),            # Random crop to 224x224
     transforms.RandomHorizontalFlip(),     # Data augmentation
     transforms.ToTensor(),
-    transforms.Normalize(mean, std),
     transforms.Lambda(lambda x: f(x)),
+    transforms.Normalize(mean, std),
 ])
 
 test_transform = transforms.Compose([
     transforms.Resize(256),
     transforms.CenterCrop(224),
     transforms.ToTensor(),
-    transforms.Normalize(mean, std),
     transforms.Lambda(lambda x: f(x)),
+    transforms.Normalize(mean, std),
 ])
 
 
