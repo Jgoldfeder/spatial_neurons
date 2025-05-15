@@ -68,7 +68,7 @@ def thread_main(thread_id):
 
 if __name__ == "__main__":
     threads = []
-    NUM_THREADS = 3
+    NUM_THREADS = 8
 
     # Spawn threads 0 through 7
     for i in range(NUM_THREADS):
