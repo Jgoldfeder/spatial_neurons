@@ -342,7 +342,7 @@ def get_model(name,num_classes,pretrained=True):
     
     model = timm.create_model(name, pretrained=pretrained)
 
-    if name in ['vit_tiny_patch16_224','vit_base_patch16_224','visformer_small','swin_base_patch4_window7_224',]:
+    if name in ['vit_tiny_patch16_224','vit_base_patch16_224','visformer_small',]:
         num_features = model.head.in_features
         model.head = torch.nn.Linear(num_features, num_classes)
     if name in ['resnet50','resnet101']:
@@ -351,7 +351,7 @@ def get_model(name,num_classes,pretrained=True):
     if name in ['efficientnet_b0','densenet121','mobilenetv3_small_100']:
         num_features = model.classifier.in_features
         model.classifier = torch.nn.Linear(num_features, num_classes)
-    if name in ['vgg19',]:
+    if name in ['vgg19','swin_base_patch4_window7_224']:
         num_features = model.head.fc.in_features
         model.head.fc = torch.nn.Linear(num_features, num_classes)
     return model
