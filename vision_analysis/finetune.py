@@ -43,6 +43,8 @@ modes = [
     "spatial-both",    
     "spatial-circle",
     "cluster",
+    "uniform",
+    "gaussian",
 ]
 
 cluster = -1
@@ -59,9 +61,12 @@ A = 20.0
 B = 20.0
 D = 1.0 
 
-if mode in ["spatial","spatial-swap","spatial-circle","cluster"]:
+if mode in ["spatial","spatial-swap","spatial-circle","cluster","uniform","gaussian"]:
+    distribution="spatial"
+    if mode in ["uniform","gaussian"]:
+        distribution = mode
     use_circle = mode in ["spatial-circle"]       
-    model = spatial_wrapper_swap.SpatialNet(model,A, B, D,circle=use_circle,cluster=cluster)
+    model = spatial_wrapper_swap.SpatialNet(model,A, B, D,circle=use_circle,cluster=cluster,distribution=distribution)
 if mode in ['spatial-learn','spatial-both']:
     model = spatial_wrapper_learnable.SpatialNet(model,A, B, D)
 
@@ -115,7 +120,7 @@ for epoch in range(num_epochs):
         if mode in ["L1"]:
             l1_norm = sum(p.abs().mean() for p in model.parameters())/len([p for p in model.parameters()])
             loss+=l1_norm*gamma
-        if mode in ["spatial","spatial-swap","spatial-learn","spatial-circle","cluster",'spatial-both']:
+        if mode in ["spatial","spatial-swap","spatial-learn","spatial-circle","cluster",'spatial-both',"uniform","gaussian"]:
             loss += model.get_cost(quadratic=False)*gamma
 
         # Backward pass and optimization
@@ -152,7 +157,7 @@ for epoch in range(num_epochs):
     print(f"Epoch [{epoch+1}/{num_epochs}] | Train Loss: {train_loss:.4f} | Train Acc: {train_acc:.2f}% "
           f"| Test Loss: {test_loss:.4f} | Test Acc: {test_acc:.2f}%")
     
-if mode in ["spatial","spatial-swap","spatial-learn","spatial-circle","cluster",'spatial-both']:
+if mode in ["spatial","spatial-swap","spatial-learn","spatial-circle","cluster",'spatial-both',"uniform","gaussian"]:
     # extract the model from the wrapper
     model=model.model
 

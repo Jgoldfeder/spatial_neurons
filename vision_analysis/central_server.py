@@ -16,8 +16,6 @@ lock = Lock()
 
 commands = []
 
-datasets = ['cifar100','cifar10',"pets","tiny_imagenet",'svhn','birds','caltech101','DTD']
-models = ["vit_tiny_patch16_224","resnet50"]
 # modes = {
 #     "baseline": [0],
 #     "L1" : [50, 200, 500, 1000, 2000, 5000, 10000, 20000, 60000, 120000, 300000],
@@ -26,35 +24,75 @@ models = ["vit_tiny_patch16_224","resnet50"]
 #     "spatial-learn": [40,140, 325, 650, 1300, 2600, 4000, 8000, 16000, 32000, 64000],
 #     "spatial-both": [40,140, 325, 650, 1300, 2600, 4000, 8000, 16000, 32000, 64000],
 # }
+
+
+
+# datasets = ['cifar100','cifar10',"pets","tiny_imagenet",'svhn','birds','caltech101','DTD']
+# models = ["vit_tiny_patch16_224","resnet50"]
+# modes = {
+#     "baseline": [0],
+#     "L1" : [50, 200, 500, 1000, 2000, 4000, 5000, 10000, 20000, 40000],
+#     "spatial": [20,40,80,120,162,325,650,1300,2600,5000],
+#     "spatial-swap": [20,40,80,120,162,325,650,1300,2600,5000],
+#     "spatial-learn":[20,40,80,120,162,325,650,1300,2600,5000],
+#     "spatial-both": [20,40,80,120,162,325,650,1300,2600,5000],
+# }
+
+
+
+# for dataset in datasets:
+#     for model in models:
+#         for mode, gammas in modes.items():
+#             for gamma in gammas:
+#                 path = f"./metrics/{dataset}/{mode}/{mode}:{model}:{gamma}.pkl"  
+#                 if not os.path.exists(path):
+#                     command = {
+#                         "dataset" : dataset,
+#                         "mode" : mode,
+#                         "model" : model,
+#                         "gamma" : gamma,
+#                     }
+#                     commands.append(command) 
+#                 else:
+#                     print("already ran", dataset, model, mode, gamma)
+
+# datasets = ['cifar100']
+# models = ['vit_base_patch16_224','resnet101','efficientnet_b0','vgg19','visformer_small','swin_base_patch4_window7_224','mobilenetv3_small_100','densenet121']
+# for dataset in datasets:
+#     for model in models:
+#         for mode, gammas in modes.items():
+#             for gamma in gammas:
+#                 path = f"./metrics/{dataset}/{mode}/{mode}:{model}:{gamma}.pkl"  
+#                 if not os.path.exists(path):
+#                     command = {
+#                         "dataset" : dataset,
+#                         "mode" : mode,
+#                         "model" : model,
+#                         "gamma" : gamma,
+#                     }
+#                     commands.append(command) 
+#                 else:
+#                     print("already ran", dataset, model, mode, gamma)
+
+
+
+
 modes = {
     "baseline": [0],
-    "L1" : [50, 200, 500, 1000, 2000, 4000, 5000, 10000, 20000, 40000],
-    "spatial": [20,40,80,120,162,325,650,1300,2600,5000],
-    "spatial-swap": [20,40,80,120,162,325,650,1300,2600,5000],
-    "spatial-learn":[20,40,80,120,162,325,650,1300,2600,5000],
-    "spatial-both": [20,40,80,120,162,325,650,1300,2600,5000],
+    "L1" : [50, 200, 500, 1000, 2000, 5000, 10000, 20000, 60000, 120000, 300000],
+    "spatial": [40,140, 325, 650, 1300, 2600, 4000, 8000, 16000, 32000, 64000],
+    "spatial-swap": [40,140, 325, 650, 1300, 2600, 4000, 8000, 16000, 32000, 64000],
+    "spatial-learn": [40,140, 325, 650, 1300, 2600, 4000, 8000, 16000, 32000, 64000],
+    "spatial-both": [40,140, 325, 650, 1300, 2600, 4000, 8000, 16000, 32000, 64000],
+    "gaussian": [40,140, 325, 650, 1300, 2600, 4000, 8000, 16000, 32000, 64000],
+    "uniform": [40,140, 325, 650, 1300, 2600, 4000, 8000, 16000, 32000, 64000],
+    "cluster4": [40,140, 325, 650, 1300, 2600, 4000, 8000, 16000, 32000, 64000],
+    "cluster40": [40,140, 325, 650, 1300, 2600, 4000, 8000, 16000, 32000, 64000],
+    "cluster400": [40,140, 325, 650, 1300, 2600, 4000, 8000, 16000, 32000, 64000],
 }
-
-
-
-for dataset in datasets:
-    for model in models:
-        for mode, gammas in modes.items():
-            for gamma in gammas:
-                path = f"./metrics/{dataset}/{mode}/{mode}:{model}:{gamma}.pkl"  
-                if not os.path.exists(path):
-                    command = {
-                        "dataset" : dataset,
-                        "mode" : mode,
-                        "model" : model,
-                        "gamma" : gamma,
-                    }
-                    commands.append(command) 
-                else:
-                    print("already ran", dataset, model, mode, gamma)
-
 datasets = ['cifar100']
-models = ['vit_base_patch16_224','resnet101','efficientnet_b0','vgg19','visformer_small','swin_base_patch4_window7_224','mobilenetv3_small_100','densenet121']
+models = ["vit_tiny_patch16_224"]
+
 for dataset in datasets:
     for model in models:
         for mode, gammas in modes.items():
@@ -70,8 +108,6 @@ for dataset in datasets:
                     commands.append(command) 
                 else:
                     print("already ran", dataset, model, mode, gamma)
-
-
 
 for command in commands:
     task_queue.put(command)

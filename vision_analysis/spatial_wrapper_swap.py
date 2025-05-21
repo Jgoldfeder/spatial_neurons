@@ -211,9 +211,8 @@ def compute_distance_matrix(N, M, A, B, D,cache_dir="cache"):
     torch.save(distance_matrix, cache_path)
     return distance_matrix
 
-# full_penalty means we penalize Q K and V, not only V, in the transformer layers
 class SpatialNet(nn.Module):
-    def __init__(self, model, A, B, D, spatial_cost_scale=1,device="cuda",circle=False,cluster=-1,full_penalty=False):
+    def __init__(self, model, A, B, D, spatial_cost_scale=1,device="cuda",circle=False,cluster=-1,distribution="spatial"):
         super(SpatialNet, self).__init__()
         self.model = model
         self.linear_layers = []
@@ -227,9 +226,11 @@ class SpatialNet(nn.Module):
         self.D = D
         self.circle = circle
         self.cluster=cluster
-        self.full_penalty=full_penalty
         self.spatial_cost_scale = spatial_cost_scale  # Scaling factor for spatial cost
         self.device=device
+        self.distribution=distribution
+        if self.distribution not in ['spatial','cluster','uniform','gaussian']:
+            raise ValueError("Illegal Distribuion!")
         self._extract_layers(model)
 
     def _extract_layers(self, module):
@@ -242,6 +243,10 @@ class SpatialNet(nn.Module):
                     distance_matrix = create_clustered_connectivity(N,M,self.cluster)
                 elif self.circle:
                     distance_matrix = compute_distance_matrix_circle(N, M, self.A, self.B, self.D)
+                elif self.distribution == 'uniform':
+                    distance_matrix = torch.rand(N, M)
+                elif self.distribution == 'gaussian':
+                    distance_matrix = torch.randn(N, M).abs()
                 else:
                     distance_matrix = compute_distance_matrix(N, M, self.A, self.B, self.D)
                 self.linear_distance_matrices.append(distance_matrix)

@@ -22,58 +22,518 @@ import classification_util
 
 from PIL import Image
 
-def make_image_grid(image_grid, bg_color=(255, 255, 255)):
+from PIL import Image, ImageDraw, ImageFont
+from typing import List, Tuple, Optional
+
+from PIL import Image, ImageDraw, ImageFont
+
+from PIL import Image, ImageDraw, ImageFont
+
+import io
+from PIL import Image
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+def make_image_grid_sns(
+    image_grid,
+    row_titles=None,
+    col_titles=None,
+    row_text_size=14,
+    col_text_size=16,
+    style="whitegrid",
+    figsize=None,
+    left_margin=0.15,
+    top_margin=0.85,
+    wspace=0.01,
+    hspace=0.01,
+    row_labelpad=10,
+    col_titlepad=10,
+    dpi=100
+):
     """
-    Given a 2D list of PIL Images, arrange them in a grid and return the combined image.
+    Arrange a 2D list of PIL.Images in a grid with Seaborn styling,
+    adding adjustable row and column titles.
 
     Parameters:
-        image_grid (list of list of PIL.Image): shape (N rows × M cols)
-        bg_color (tuple): background color as an RGB triplet (default white)
+    -----------
+    image_grid : list of list of PIL.Image
+        Your N×M grid of images.
+    row_titles : list of str or None
+        Length N. Titles for each row (rotated vertically).
+    col_titles : list of str or None
+        Length M. Titles for each column.
+    row_text_size : int
+        Font size for row labels.
+    col_text_size : int
+        Font size for column titles.
+    style : str
+        Any seaborn style, e.g. "whitegrid", "ticks".
+    figsize : tuple or None
+        (width, height) in inches. If None, uses (M*2, N*2).
+    left_margin : float
+        Fraction of figure width reserved on left for row titles.
+    top_margin : float
+        Fraction of figure height reserved on top for col titles.
+    wspace, hspace : float
+        Spacing between subplots.
+    row_labelpad : int
+        Padding (points) between row title and images.
+    col_titlepad : int
+        Padding (points) between col title and images.
+    dpi : int
+        Resolution of the output image.
 
     Returns:
-        PIL.Image: the combined grid image
+    --------
+    PIL.Image.Image
+        The rendered grid.
     """
+    sns.set_theme(style=style)
+    n_rows = len(image_grid)
+    n_cols = max(len(r) for r in image_grid)
+
+    # default figsize if not provided
+    if figsize is None:
+        figsize = (n_cols * 2, n_rows * 2)
+
+    fig, axes = plt.subplots(
+        n_rows, n_cols,
+        figsize=figsize,
+        dpi=dpi,
+        squeeze=False
+    )
+    fig.subplots_adjust(
+        left=left_margin, top=top_margin,
+        wspace=wspace, hspace=hspace
+    )
+
+    # plot each image
+    for i in range(n_rows):
+        for j in range(n_cols):
+            ax = axes[i][j]
+            ax.axis("off")
+            if j < len(image_grid[i]):
+                img = image_grid[i][j]
+                ax.imshow(np.array(img))
+
+    # column titles
+    if col_titles:
+        for j, title in enumerate(col_titles):
+            ax = axes[0][j]
+            ax.set_title(
+                title,
+                fontsize=col_text_size,
+                pad=col_titlepad
+            )
+
+    # row titles
+    if row_titles:
+        for i, title in enumerate(row_titles):
+            ax = axes[i][0]
+            ax.set_ylabel(
+                title,
+                fontsize=row_text_size,
+                rotation=90,
+                labelpad=row_labelpad,
+                va="center"
+            )
+
+    # export to PIL
+    buf = io.BytesIO()
+    plt.savefig(buf, format="png", bbox_inches="tight", pad_inches=0)
+    plt.close(fig)
+    buf.seek(0)
+    return Image.open(buf)
+
+def make_image_grid(
+    image_grid,
+    row_titles=None,
+    col_titles=None,
+    row_text_size=20,
+    col_text_size=20,
+    bg_color=(255, 255, 255),
+    font_path=None,
+    padding=10,
+    row_title_padding=None
+):
+    """
+    Arrange a 2D list of PIL Images in a grid with optional column titles
+    across the top and row titles down the left (rotated 90°), with a
+    separate padding for row titles vs. overall padding.
+
+    Parameters:
+        image_grid (list of list of PIL.Image): N rows × M cols
+        row_titles (list of str or None): length=N, titles for each row
+        col_titles (list of str or None): length=M, titles for each column
+        row_text_size (int): font size for row titles (before rotation)
+        col_text_size (int): font size for column titles
+        bg_color (tuple): RGB background
+        font_path (str or None): path to .ttf (falls back to default)
+        padding (int): space between column-titles and grid, and general padding
+        row_title_padding (int or None): extra space between row-titles and grid;
+            if None, defaults to `padding`
+    """
+
     if not image_grid or not image_grid[0]:
         raise ValueError("image_grid must be a non-empty 2D list")
 
-    # Number of rows and columns
-    n_rows = len(image_grid)
-    n_cols = max(len(row) for row in image_grid)
+    if row_title_padding is None:
+        row_title_padding = padding
 
-    # Compute max widths of each column and max heights of each row
-    col_widths = [0] * n_cols
-    row_heights = [0] * n_rows
+    n_rows = len(image_grid)
+    n_cols = max(len(r) for r in image_grid)
+
+    # --- Load fonts ---
+    def _load_font(size):
+        if font_path:
+            return ImageFont.truetype(font_path, size)
+        for name in ("arial.ttf", "LiberationSans-Regular.ttf"):
+            try:
+                return ImageFont.truetype(name, size)
+            except IOError:
+                continue
+        return ImageFont.load_default()
+
+    row_font = _load_font(row_text_size)
+    col_font = _load_font(col_text_size)
+
+    # --- Measure title margins with a dummy draw ---
+    dummy = Image.new("RGB", (1,1))
+    dd = ImageDraw.Draw(dummy)
+
+    # Column-title height
+    if col_titles:
+        col_bboxes = [dd.textbbox((0,0), t, font=col_font) for t in col_titles]
+        col_title_h = max(y1 - y0 for x0,y0,x1,y1 in col_bboxes)
+    else:
+        col_title_h = 0
+
+    # Row-title width (pre-rotation text height)
+    if row_titles:
+        row_bboxes = [dd.textbbox((0,0), t, font=row_font) for t in row_titles]
+        row_title_w = max(y1 - y0 for x0,y0,x1,y1 in row_bboxes)
+    else:
+        row_title_w = 0
+
+    # Margins: top for column titles, left for row titles
+    top_margin = (col_title_h + padding) if col_titles else 0
+    left_margin = (row_title_w + row_title_padding) if row_titles else 0
+
+    # --- Compute each cell’s width/height ---
+    col_widths = [0]*n_cols
+    row_heights = [0]*n_rows
     for i, row in enumerate(image_grid):
         for j, img in enumerate(row):
-            w, h = img.size
-            if w > col_widths[j]:
-                col_widths[j] = w
-            if h > row_heights[i]:
-                row_heights[i] = h
+            w,h = img.size
+            col_widths[j] = max(col_widths[j], w)
+            row_heights[i] = max(row_heights[i], h)
 
-    # Total size
-    total_width = sum(col_widths)
-    total_height = sum(row_heights)
+    total_w = left_margin + sum(col_widths)
+    total_h = top_margin + sum(row_heights)
 
-    # Create the output image
-    grid_img = Image.new("RGB", (total_width, total_height), color=bg_color)
-
-    # Paste each image
-    y_offset = 0
+    # --- Create the canvas and paste images first ---
+    grid_img = Image.new("RGB", (total_w, total_h), color=bg_color)
+    y_off = top_margin
     for i, row in enumerate(image_grid):
-        x_offset = 0
+        x_off = left_margin
         for j in range(n_cols):
             if j < len(row):
                 img = row[j]
-                # center image in its cell
                 w, h = img.size
-                x_pad = (col_widths[j] - w) // 2
-                y_pad = (row_heights[i] - h) // 2
-                grid_img.paste(img, (x_offset + x_pad, y_offset + y_pad))
-            x_offset += col_widths[j]
-        y_offset += row_heights[i]
+                x_pad = (col_widths[j] - w)//2
+                y_pad = (row_heights[i] - h)//2
+                grid_img.paste(img, (x_off + x_pad, y_off + y_pad))
+            x_off += col_widths[j]
+        y_off += row_heights[i]
+
+    draw = ImageDraw.Draw(grid_img)
+
+    # --- Draw column titles (on top) ---
+    if col_titles:
+        x_off = left_margin
+        for j, title in enumerate(col_titles):
+            w_cell = col_widths[j]
+            x0,y0,x1,y1 = dd.textbbox((0,0), title, font=col_font)
+            tw, th = x1-x0, y1-y0
+            x = x_off + (w_cell - tw)//2
+            y = (top_margin - th)//2
+            draw.text((x, y), title, font=col_font, fill="black")
+            x_off += w_cell
+
+    # --- Draw rotated row titles last (on top) ---
+    if row_titles:
+        y_off = top_margin
+        for i, title in enumerate(row_titles):
+            h_cell = row_heights[i]
+            x0,y0,x1,y1 = dd.textbbox((0,0), title, font=row_font)
+            tw, th = x1-x0, y1-y0
+
+            # Render text, rotate, and paste flush-left
+            text_img = Image.new("RGBA", (tw, th), (255,255,255,0))
+            dt = ImageDraw.Draw(text_img)
+            dt.text((0,0), title, font=row_font, fill="black")
+            rotated = text_img.rotate(90, expand=True)  # size = (th, tw)
+
+            rw, rh = rotated.size
+            # Draw at x=0 so the entire row-padding is to its right
+            x = 0
+            y = y_off + (h_cell - rh)//2
+            grid_img.paste(rotated, (x, y), rotated)
+
+            y_off += h_cell
 
     return grid_img
+
+import io
+from PIL import Image
+import matplotlib.pyplot as plt
+import seaborn as sns
+import io
+from PIL import Image
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+def plot_lists(
+    data_lists,
+    title="My Chart",
+    xlabel="X-axis",
+    ylabel="Y-axis",
+    labels=None,
+    log=False,
+    style="whitegrid",
+    palette="deep",
+    fig_size=(8, 6),
+    dpi=300
+):
+    """
+    Plots any number of series (each a list of (y, x) tuples) and returns
+    the plot as a PIL.Image with professional Seaborn styling.
+
+    Parameters:
+        data_lists (List[List[Tuple[float,float]]]):
+            A list where each element is itself a list of (y, x) points.
+        title (str): Chart title.
+        xlabel (str): X-axis label.
+        ylabel (str): Y-axis label.
+        labels (List[str] or None): Legend labels for each series.
+        log (bool): If True, use a log-scale on the y-axis.
+        style (str): Seaborn style (“whitegrid”, “ticks”, etc.).
+        palette (str or List[str]): Seaborn color palette name or list of colors.
+        fig_size (tuple): Figure size in inches.
+        dpi (int): Dots-per-inch for the output image.
+
+    Returns:
+        PIL.Image.Image: the rendered chart
+    """
+    # 1) Apply Seaborn theme
+    sns.set_style(style)
+    sns.set_palette(palette)
+    sns.set_context("paper", font_scale=1.2)
+
+    # 2) Create the figure
+    fig, ax = plt.subplots(figsize=fig_size)
+
+    # 3) Default labels if none provided
+    if labels is None:
+        labels = [f"Series {i+1}" for i in range(len(data_lists))]
+
+    # 4) Plot each series
+    for i, data in enumerate(data_lists):
+        if data:
+            # original convention: data is list of (y, x)
+            y_vals, x_vals = zip(*data)
+        else:
+            x_vals, y_vals = [], []
+        sns.lineplot(
+            x=x_vals,
+            y=y_vals,
+            marker="o",
+            ax=ax,
+            label=labels[i]
+        )
+
+    # 5) Log scale?
+    if log:
+        ax.set_yscale("log")
+
+    # 6) Labels, title, legend
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+    ax.set_title(title, pad=15)
+    ax.legend(frameon=True, loc="best")
+
+    plt.tight_layout()
+
+    # 7) Save to in-memory buffer
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", dpi=dpi, bbox_inches="tight")
+    buf.seek(0)
+    plt.close(fig)
+
+    # 8) Return as a PIL image
+    return Image.open(buf)
+
+
+# def make_image_grid(
+#     image_grid,
+#     row_titles=None,
+#     col_titles=None,
+#     row_text_size=20,
+#     col_text_size=20,
+#     bg_color=(255, 255, 255),
+#     font_path=None,
+#     padding=10
+# ):
+#     if not image_grid or not image_grid[0]:
+#         raise ValueError("image_grid must be a non-empty 2D list")
+
+#     n_rows = len(image_grid)
+#     n_cols = max(len(row) for row in image_grid)
+
+#     # Load fonts
+#     def _load_font(size):
+#         if font_path:
+#             return ImageFont.truetype(font_path, size)
+#         for name in ("arial.ttf", "LiberationSans-Regular.ttf"):
+#             try:
+#                 return ImageFont.truetype(name, size)
+#             except IOError:
+#                 continue
+#         return ImageFont.load_default()
+#     row_font = _load_font(row_text_size)
+#     col_font = _load_font(col_text_size)
+
+#     # Measure title areas using a dummy draw
+#     dummy = Image.new("RGB", (1,1))
+#     dd = ImageDraw.Draw(dummy)
+
+#     # Column titles height
+#     if col_titles:
+#         col_sizes = [dd.textbbox((0,0), t, font=col_font) for t in col_titles]
+#         col_title_h = max(y1 - y0 for x0, y0, x1, y1 in col_sizes)
+#     else:
+#         col_title_h = 0
+
+#     # Row titles width
+#     if row_titles:
+#         row_sizes = [dd.textbbox((0,0), t, font=row_font) for t in row_titles]
+#         row_title_w = max(x1 - x0 for x0, y0, x1, y1 in row_sizes)
+#     else:
+#         row_title_w = 0
+
+#     top_margin = (col_title_h + padding) if col_titles else 0
+#     left_margin = (row_title_w + padding) if row_titles else 0
+
+#     # Compute cell sizes
+#     col_widths = [0]*n_cols
+#     row_heights = [0]*n_rows
+#     for i, row in enumerate(image_grid):
+#         for j, img in enumerate(row):
+#             w,h = img.size
+#             col_widths[j] = max(col_widths[j], w)
+#             row_heights[i] = max(row_heights[i], h)
+
+#     total_w = left_margin + sum(col_widths)
+#     total_h = top_margin + sum(row_heights)
+
+#     # Create canvas
+#     grid_img = Image.new("RGB", (total_w, total_h), color=bg_color)
+#     draw = ImageDraw.Draw(grid_img)
+
+#     # Draw column titles
+#     if col_titles:
+#         x_off = left_margin
+#         for j, title in enumerate(col_titles):
+#             w_cell = col_widths[j]
+#             x0, y0, x1, y1 = dd.textbbox((0,0), title, font=col_font)
+#             tw, th = x1-x0, y1-y0
+#             x = x_off + (w_cell - tw)//2
+#             y = (top_margin - th)//2
+#             draw.text((x, y), title, font=col_font, fill="black")
+#             x_off += w_cell
+
+#     # Draw row titles
+#     if row_titles:
+#         y_off = top_margin
+#         for i, title in enumerate(row_titles):
+#             h_cell = row_heights[i]
+#             x0, y0, x1, y1 = dd.textbbox((0,0), title, font=row_font)
+#             tw, th = x1-x0, y1-y0
+#             x = (left_margin - tw)//2
+#             y = y_off + (h_cell - th)//2
+#             draw.text((x, y), title, font=row_font, fill="black")
+#             y_off += h_cell
+
+#     # Paste images
+#     y_off = top_margin
+#     for i, row in enumerate(image_grid):
+#         x_off = left_margin
+#         for j in range(n_cols):
+#             if j < len(row):
+#                 img = row[j]
+#                 w, h = img.size
+#                 x_pad = (col_widths[j] - w)//2
+#                 y_pad = (row_heights[i] - h)//2
+#                 grid_img.paste(img, (x_off + x_pad, y_off + y_pad))
+#             x_off += col_widths[j]
+#         y_off += row_heights[i]
+
+#     return grid_img
+
+
+# def make_image_grid(image_grid, bg_color=(255, 255, 255)):
+#     """
+#     Given a 2D list of PIL Images, arrange them in a grid and return the combined image.
+
+#     Parameters:
+#         image_grid (list of list of PIL.Image): shape (N rows × M cols)
+#         bg_color (tuple): background color as an RGB triplet (default white)
+
+#     Returns:
+#         PIL.Image: the combined grid image
+#     """
+#     if not image_grid or not image_grid[0]:
+#         raise ValueError("image_grid must be a non-empty 2D list")
+
+#     # Number of rows and columns
+#     n_rows = len(image_grid)
+#     n_cols = max(len(row) for row in image_grid)
+
+#     # Compute max widths of each column and max heights of each row
+#     col_widths = [0] * n_cols
+#     row_heights = [0] * n_rows
+#     for i, row in enumerate(image_grid):
+#         for j, img in enumerate(row):
+#             w, h = img.size
+#             if w > col_widths[j]:
+#                 col_widths[j] = w
+#             if h > row_heights[i]:
+#                 row_heights[i] = h
+
+#     # Total size
+#     total_width = sum(col_widths)
+#     total_height = sum(row_heights)
+
+#     # Create the output image
+#     grid_img = Image.new("RGB", (total_width, total_height), color=bg_color)
+
+#     # Paste each image
+#     y_offset = 0
+#     for i, row in enumerate(image_grid):
+#         x_offset = 0
+#         for j in range(n_cols):
+#             if j < len(row):
+#                 img = row[j]
+#                 # center image in its cell
+#                 w, h = img.size
+#                 x_pad = (col_widths[j] - w) // 2
+#                 y_pad = (row_heights[i] - h) // 2
+#                 grid_img.paste(img, (x_offset + x_pad, y_offset + y_pad))
+#             x_offset += col_widths[j]
+#         y_offset += row_heights[i]
+
+#     return grid_img
 
 
 def model_modularity(model, threshold: float = 0.0) -> float:
@@ -318,7 +778,7 @@ def visualize_vit_architecture(model, neuron_count=192, connection_threshold=0.1
     plt.show()
 
 
-def plot_lists(data_lists, title="My Chart", xlabel="X-axis", ylabel="Y-axis", labels=None, log=False):
+def plot_lists_old(data_lists, title="My Chart", xlabel="X-axis", ylabel="Y-axis", labels=None, log=False):
     """
     Plots any number of lists and returns the plot as a PIL Image.
     Each dataset should be a list of (y, x) tuples.

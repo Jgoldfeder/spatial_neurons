@@ -35,7 +35,7 @@ while True:
     time.sleep(2.5)
     commands = []
 
-    datasets = ['cifar100','cifar10',"pets","tiny_imagenet",'svhn','birds','caltech101','DTD']
+    datasets = ['cifar100','cifar10',"pets","tiny_imagenet",'svhn','birds','DTD'] # 'caltech101'
     models = ["vit_tiny_patch16_224","resnet50"]
     # modes = {
     #     "baseline": [0],
@@ -70,8 +70,8 @@ while True:
                     commands.append(command) 
                     
 
-    datasets = ['cifar100']
-    models = ['vit_base_patch16_224','resnet101','efficientnet_b0','vgg19','visformer_small','swin_base_patch4_window7_224','mobilenetv3_small_100','densenet121']
+    datasets = ['cifar100']  # removed 'visformer_small',
+    models = ['vit_base_patch16_224','resnet101','efficientnet_b0','vgg19','swin_base_patch4_window7_224','mobilenetv3_small_100','densenet121']
     for dataset in datasets:
         for model in models:
             for mode, gammas in modes.items():
@@ -108,4 +108,4 @@ while True:
                 os.remove(name)
 
     enqueue_tasks(commands_to_add)  
-    print(total,error)
+    print(len(commands),total,error)
