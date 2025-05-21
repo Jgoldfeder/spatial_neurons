@@ -87,7 +87,8 @@ if __name__ == "__main__":
         model = classification_util.get_model(name,num_classes=100,pretrained=True)
 
     threads = []
-    NUM_THREADS = 8
+    NUM_THREADS = int(sys.argv[1])
+    print("NUM_THREADS",NUM_THREADS)
 
     # Spawn threads 0 through 7
     for i in range(NUM_THREADS):
