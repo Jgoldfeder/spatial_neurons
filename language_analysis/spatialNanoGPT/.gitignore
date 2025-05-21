@@ -1,0 +1,16 @@
+.DS_Store
+.idea
+.ipynb_checkpoints/
+.vscode
+CLAUDE.md
+__pycache__/
+*.bin
+*.pkl
+*.pt
+*.pyc
+input.txt
+env/
+venv/
+wandb/
+/regularization_experiments
+/regularization_pareto
