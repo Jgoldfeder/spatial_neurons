@@ -244,9 +244,9 @@ class SpatialNet(nn.Module):
                 elif self.circle:
                     distance_matrix = compute_distance_matrix_circle(N, M, self.A, self.B, self.D)
                 elif self.distribution == 'uniform':
-                    distance_matrix = torch.rand(N, M)
+                    distance_matrix = torch.rand(M, N)
                 elif self.distribution == 'gaussian':
-                    distance_matrix = torch.randn(N, M).abs()
+                    distance_matrix = torch.randn(M, N).abs()
                 else:
                     distance_matrix = compute_distance_matrix(N, M, self.A, self.B, self.D)
                 self.linear_distance_matrices.append(distance_matrix)
