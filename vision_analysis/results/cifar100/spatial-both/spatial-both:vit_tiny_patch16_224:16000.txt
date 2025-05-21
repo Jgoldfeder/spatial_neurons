@@ -1,0 +1,39 @@
+(-10.0, 10.0, 0.030385395511984825, 4.108434200286865)
+init tensor(0.5264, device='cuda:0', grad_fn=<AddBackward0>)
+final tensor(0.4977, device='cuda:0', grad_fn=<AddBackward0>)
+Epoch [1/10] | Train Loss: 5120.6365 | Train Acc: 10.21% | Test Loss: 3.5811 | Test Acc: 14.95%
+(-10.733983993530273, 10.758200645446777, 0.005833687260746956, 2.775290012359619)
+init tensor(0.2221, device='cuda:0', grad_fn=<AddBackward0>)
+final tensor(0.2208, device='cuda:0', grad_fn=<AddBackward0>)
+Epoch [2/10] | Train Loss: 2915.2191 | Train Acc: 13.02% | Test Loss: 3.8978 | Test Acc: 9.92%
+(-12.757241249084473, 10.949143409729004, 0.004517009481787682, 2.775722026824951)
+init tensor(0.1546, device='cuda:0', grad_fn=<AddBackward0>)
+final tensor(0.1541, device='cuda:0', grad_fn=<AddBackward0>)
+Epoch [3/10] | Train Loss: 2204.4579 | Train Acc: 9.71% | Test Loss: 3.9979 | Test Acc: 8.48%
+(-14.462570190429688, 13.887358665466309, 0.003518306650221348, 3.338871955871582)
+init tensor(0.1243, device='cuda:0', grad_fn=<AddBackward0>)
+final tensor(0.1242, device='cuda:0', grad_fn=<AddBackward0>)
+Epoch [4/10] | Train Loss: 1852.0171 | Train Acc: 7.83% | Test Loss: 4.1210 | Test Acc: 6.67%
+(-15.44426155090332, 15.038006782531738, 0.0025306385941803455, 3.995610237121582)
+init tensor(0.1084, device='cuda:0', grad_fn=<AddBackward0>)
+final tensor(0.1083, device='cuda:0', grad_fn=<AddBackward0>)
+Epoch [5/10] | Train Loss: 1654.9431 | Train Acc: 6.99% | Test Loss: 4.1565 | Test Acc: 6.68%
+(-17.06283187866211, 16.79486846923828, 0.0008332524448633194, 4.598369598388672)
+init tensor(0.0987, device='cuda:0', grad_fn=<AddBackward0>)
+final tensor(0.0986, device='cuda:0', grad_fn=<AddBackward0>)
+Epoch [6/10] | Train Loss: 1524.0754 | Train Acc: 6.46% | Test Loss: 4.1893 | Test Acc: 6.81%
+(-18.278390884399414, 18.090110778808594, -0.0007270355708897114, 5.134878158569336)
+init tensor(0.0916, device='cuda:0', grad_fn=<AddBackward0>)
+final tensor(0.0916, device='cuda:0', grad_fn=<AddBackward0>)
+Epoch [7/10] | Train Loss: 1422.0581 | Train Acc: 6.49% | Test Loss: 4.2172 | Test Acc: 5.24%
+(-19.565326690673828, 18.761306762695312, -0.0016637337394058704, 5.616513252258301)
+init tensor(0.0858, device='cuda:0', grad_fn=<AddBackward0>)
+final tensor(0.0858, device='cuda:0', grad_fn=<AddBackward0>)
+Epoch [8/10] | Train Loss: 1334.8472 | Train Acc: 6.53% | Test Loss: 4.1921 | Test Acc: 5.13%
+(-20.38126564025879, 19.278194427490234, -0.0032706474885344505, 6.049385070800781)
+init tensor(0.0806, device='cuda:0', grad_fn=<AddBackward0>)
+final tensor(0.0806, device='cuda:0', grad_fn=<AddBackward0>)
+Epoch [9/10] | Train Loss: 1256.7974 | Train Acc: 6.68% | Test Loss: 4.1226 | Test Acc: 7.03%
+(-21.31978416442871, 20.1556339263916, -0.0035563246347010136, 6.4381608963012695)
+init tensor(0.0760, device='cuda:0', grad_fn=<AddBackward0>)
+final tensor(0.0760, device='cuda:0', grad_fn=<AddBackward0>)

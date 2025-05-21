@@ -1,0 +1,3 @@
+(-10.0, 10.0, -0.20551595091819763, 4.096693992614746)
+init tensor(1.2943, device='cuda:0', grad_fn=<AddBackward0>)
+final tensor(1.1738, device='cuda:0', grad_fn=<AddBackward0>)

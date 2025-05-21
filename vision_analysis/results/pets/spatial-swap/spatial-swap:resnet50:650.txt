@@ -1,0 +1,1 @@
+init tensor(1.2586, device='cuda:0', grad_fn=<AddBackward0>)

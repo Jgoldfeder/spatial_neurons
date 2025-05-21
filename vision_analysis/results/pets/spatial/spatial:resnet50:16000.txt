@@ -1,0 +1,102 @@
+Epoch [1/50] | Train Loss: 19968.6527 | Train Acc: 3.59% | Test Loss: 3.5876 | Test Acc: 6.21%
+Epoch [2/50] | Train Loss: 19610.8895 | Train Acc: 7.42% | Test Loss: 3.5659 | Test Acc: 12.24%
+Epoch [3/50] | Train Loss: 19257.9058 | Train Acc: 16.39% | Test Loss: 3.5476 | Test Acc: 22.49%
+Epoch [4/50] | Train Loss: 18909.7478 | Train Acc: 26.68% | Test Loss: 3.5314 | Test Acc: 34.61%
+Epoch [5/50] | Train Loss: 18566.4273 | Train Acc: 38.15% | Test Loss: 3.5168 | Test Acc: 45.35%
+Epoch [6/50] | Train Loss: 18227.9364 | Train Acc: 44.05% | Test Loss: 3.5025 | Test Acc: 50.94%
+Epoch [7/50] | Train Loss: 17894.2631 | Train Acc: 48.83% | Test Loss: 3.4900 | Test Acc: 54.46%
+Epoch [8/50] | Train Loss: 17565.3980 | Train Acc: 50.22% | Test Loss: 3.4799 | Test Acc: 54.70%
+Epoch [9/50] | Train Loss: 17241.2429 | Train Acc: 51.82% | Test Loss: 3.4711 | Test Acc: 56.09%
+Epoch [10/50] | Train Loss: 16921.6677 | Train Acc: 52.88% | Test Loss: 3.4593 | Test Acc: 56.66%
+Epoch [11/50] | Train Loss: 16606.6187 | Train Acc: 52.74% | Test Loss: 3.4466 | Test Acc: 57.05%
+Epoch [12/50] | Train Loss: 16296.0834 | Train Acc: 54.10% | Test Loss: 3.4353 | Test Acc: 59.12%
+Epoch [13/50] | Train Loss: 15990.0337 | Train Acc: 55.24% | Test Loss: 3.4243 | Test Acc: 59.88%
+Epoch [14/50] | Train Loss: 15688.4536 | Train Acc: 56.30% | Test Loss: 3.4086 | Test Acc: 61.13%
+Epoch [15/50] | Train Loss: 15391.3242 | Train Acc: 57.42% | Test Loss: 3.3955 | Test Acc: 61.46%
+Epoch [16/50] | Train Loss: 15098.6213 | Train Acc: 58.61% | Test Loss: 3.3825 | Test Acc: 62.28%
+Epoch [17/50] | Train Loss: 14810.3135 | Train Acc: 58.59% | Test Loss: 3.3658 | Test Acc: 63.34%
+Epoch [18/50] | Train Loss: 14526.3717 | Train Acc: 59.95% | Test Loss: 3.3481 | Test Acc: 63.59%
+Epoch [19/50] | Train Loss: 14246.7745 | Train Acc: 61.39% | Test Loss: 3.3339 | Test Acc: 64.92%
+Epoch [20/50] | Train Loss: 13971.4829 | Train Acc: 62.01% | Test Loss: 3.3131 | Test Acc: 63.89%
+Epoch [21/50] | Train Loss: 13700.4919 | Train Acc: 61.44% | Test Loss: 3.2986 | Test Acc: 65.39%
+Epoch [22/50] | Train Loss: 13433.7524 | Train Acc: 61.44% | Test Loss: 3.2762 | Test Acc: 64.81%
+Epoch [23/50] | Train Loss: 13171.2277 | Train Acc: 62.39% | Test Loss: 3.2560 | Test Acc: 65.60%
+Epoch [24/50] | Train Loss: 12912.8830 | Train Acc: 63.12% | Test Loss: 3.2346 | Test Acc: 66.72%
+Epoch [25/50] | Train Loss: 12658.6906 | Train Acc: 62.99% | Test Loss: 3.2142 | Test Acc: 66.34%
+Epoch [26/50] | Train Loss: 12408.6084 | Train Acc: 63.64% | Test Loss: 3.1947 | Test Acc: 65.58%
+Epoch [27/50] | Train Loss: 12162.5933 | Train Acc: 63.07% | Test Loss: 3.1625 | Test Acc: 66.80%
+Epoch [28/50] | Train Loss: 11920.6084 | Train Acc: 64.32% | Test Loss: 3.1424 | Test Acc: 66.18%
+Epoch [29/50] | Train Loss: 11682.6035 | Train Acc: 64.43% | Test Loss: 3.1160 | Test Acc: 65.96%
+Epoch [30/50] | Train Loss: 11448.5553 | Train Acc: 65.62% | Test Loss: 3.0898 | Test Acc: 66.07%
+Epoch [31/50] | Train Loss: 11218.4397 | Train Acc: 65.46% | Test Loss: 3.0602 | Test Acc: 66.56%
+Epoch [32/50] | Train Loss: 10992.2120 | Train Acc: 65.73% | Test Loss: 3.0314 | Test Acc: 67.02%
+Epoch [33/50] | Train Loss: 10769.8362 | Train Acc: 66.39% | Test Loss: 3.0029 | Test Acc: 67.05%
+Epoch [34/50] | Train Loss: 10551.2673 | Train Acc: 65.00% | Test Loss: 2.9672 | Test Acc: 67.21%
+Epoch [35/50] | Train Loss: 10336.4667 | Train Acc: 65.84% | Test Loss: 2.9422 | Test Acc: 67.13%
+Epoch [36/50] | Train Loss: 10125.3911 | Train Acc: 66.20% | Test Loss: 2.8972 | Test Acc: 66.94%
+Epoch [37/50] | Train Loss: 9917.9935 | Train Acc: 66.47% | Test Loss: 2.8660 | Test Acc: 67.78%
+Epoch [38/50] | Train Loss: 9714.2434 | Train Acc: 67.36% | Test Loss: 2.8415 | Test Acc: 67.32%
+Epoch [39/50] | Train Loss: 9514.0937 | Train Acc: 66.98% | Test Loss: 2.8078 | Test Acc: 66.67%
+Epoch [40/50] | Train Loss: 9317.5086 | Train Acc: 66.79% | Test Loss: 2.7645 | Test Acc: 67.16%
+Epoch [41/50] | Train Loss: 9124.4343 | Train Acc: 65.95% | Test Loss: 2.7275 | Test Acc: 66.99%
+Epoch [42/50] | Train Loss: 8934.8468 | Train Acc: 66.09% | Test Loss: 2.6903 | Test Acc: 67.08%
+Epoch [43/50] | Train Loss: 8748.6996 | Train Acc: 65.65% | Test Loss: 2.6599 | Test Acc: 66.97%
+Epoch [44/50] | Train Loss: 8565.9337 | Train Acc: 66.47% | Test Loss: 2.6207 | Test Acc: 66.88%
+Epoch [45/50] | Train Loss: 8386.4997 | Train Acc: 65.84% | Test Loss: 2.5857 | Test Acc: 67.27%
+Epoch [46/50] | Train Loss: 8210.3701 | Train Acc: 66.47% | Test Loss: 2.5488 | Test Acc: 66.56%
+Epoch [47/50] | Train Loss: 8037.4969 | Train Acc: 65.90% | Test Loss: 2.5123 | Test Acc: 66.58%
+Epoch [48/50] | Train Loss: 7867.8543 | Train Acc: 66.41% | Test Loss: 2.4820 | Test Acc: 66.53%
+Epoch [49/50] | Train Loss: 7701.3922 | Train Acc: 66.25% | Test Loss: 2.4574 | Test Acc: 66.15%
+Epoch [50/50] | Train Loss: 7538.0550 | Train Acc: 65.46% | Test Loss: 2.4124 | Test Acc: 65.96%
+Initial test accuracy: 65.96%
+Percent of weights below threshold: 60.19%
+Final test accuracy after pruning: 65.17%
+Initial test accuracy: 65.17%
+Percent of weights below threshold: 60.19%
+Final test accuracy after pruning: 65.17%
+Initial test accuracy: 65.17%
+Percent of weights below threshold: 60.19%
+Final test accuracy after pruning: 65.17%
+Initial test accuracy: 65.17%
+Percent of weights below threshold: 0.00%
+Final test accuracy after pruning: 65.17%
+Initial test accuracy: 65.17%
+Percent of weights below threshold: 0.00%
+Final test accuracy after pruning: 65.17%
+Initial test accuracy: 65.17%
+Percent of weights below threshold: 0.00%
+Final test accuracy after pruning: 65.17%
+Initial test accuracy: 65.17%
+Percent of weights below threshold: 0.00%
+Final test accuracy after pruning: 65.17%
+Initial test accuracy: 65.17%
+Percent of weights below threshold: 0.00%
+Final test accuracy after pruning: 65.17%
+Initial test accuracy: 65.17%
+Percent of weights below threshold: 0.00%
+Final test accuracy after pruning: 65.17%
+Initial test accuracy: 65.17%
+Percent of weights below threshold: 0.00%
+Final test accuracy after pruning: 65.17%
+Initial test accuracy: 65.17%
+Percent of weights below threshold: 70.00%
+Final test accuracy after pruning: 6.62%
+Initial test accuracy: 6.62%
+Percent of weights below threshold: 80.00%
+Final test accuracy after pruning: 2.73%
+Initial test accuracy: 2.73%
+Percent of weights below threshold: 90.00%
+Final test accuracy after pruning: 2.67%
+Initial test accuracy: 2.67%
+Percent of weights below threshold: 95.00%
+Final test accuracy after pruning: 2.67%
+Initial test accuracy: 2.67%
+Percent of weights below threshold: 97.00%
+Final test accuracy after pruning: 2.67%
+Initial test accuracy: 2.67%
+Percent of weights below threshold: 98.00%
+Final test accuracy after pruning: 2.67%
+Initial test accuracy: 2.67%
+Percent of weights below threshold: 99.00%
+Final test accuracy after pruning: 2.67%
+{0.01: {'initial_acc': 65.95802671027528, 'percent_below_t': 60.188506157498914, 'final_acc': 65.1676206050695, 'dead_neurons': 0, 'percent_dead_neurons': 0.0, 'unique_dead_neurons': 0, 'percent_unique_dead_neurons': 0.0, 'shift_accuracy': 0.651676206050695, 'modularity': 0.12953733201683776}, 0.001: {'initial_acc': 65.1676206050695, 'percent_below_t': 60.188506157498914, 'final_acc': 65.1676206050695, 'dead_neurons': 0, 'percent_dead_neurons': 0.0, 'unique_dead_neurons': 0, 'percent_unique_dead_neurons': 0.0, 'shift_accuracy': 0.651676206050695, 'modularity': 0.12919924770252447}, 0.0001: {'initial_acc': 65.1676206050695, 'percent_below_t': 60.188506157498914, 'final_acc': 65.1676206050695, 'dead_neurons': 0, 'percent_dead_neurons': 0.0, 'unique_dead_neurons': 0, 'percent_unique_dead_neurons': 0.0, 'shift_accuracy': 0.651676206050695, 'modularity': 0.1302791393776955}, 100: {'initial_acc': 65.1676206050695, 'percent_below_t': 0.0, 'final_acc': 65.1676206050695, 'dead_neurons': 0, 'percent_dead_neurons': 0.0, 'unique_dead_neurons': 0, 'percent_unique_dead_neurons': 0.0, 'shift_accuracy': 0.651676206050695, 'modularity': 0.12981438000396628}, 90: {'initial_acc': 65.1676206050695, 'percent_below_t': 0.0, 'final_acc': 65.1676206050695, 'dead_neurons': 0, 'percent_dead_neurons': 0.0, 'unique_dead_neurons': 0, 'percent_unique_dead_neurons': 0.0, 'shift_accuracy': 0.651676206050695, 'modularity': 0.13033772889153666}, 80: {'initial_acc': 65.1676206050695, 'percent_below_t': 0.0, 'final_acc': 65.1676206050695, 'dead_neurons': 0, 'percent_dead_neurons': 0.0, 'unique_dead_neurons': 0, 'percent_unique_dead_neurons': 0.0, 'shift_accuracy': 0.651676206050695, 'modularity': 0.13027238182121947}, 70: {'initial_acc': 65.1676206050695, 'percent_below_t': 0.0, 'final_acc': 65.1676206050695, 'dead_neurons': 0, 'percent_dead_neurons': 0.0, 'unique_dead_neurons': 0, 'percent_unique_dead_neurons': 0.0, 'shift_accuracy': 0.651676206050695, 'modularity': 0.13003283400120225}, 60: {'initial_acc': 65.1676206050695, 'percent_below_t': 0.0, 'final_acc': 65.1676206050695, 'dead_neurons': 0, 'percent_dead_neurons': 0.0, 'unique_dead_neurons': 0, 'percent_unique_dead_neurons': 0.0, 'shift_accuracy': 0.651676206050695, 'modularity': 0.12978352738965188}, 50: {'initial_acc': 65.1676206050695, 'percent_below_t': 0.0, 'final_acc': 65.1676206050695, 'dead_neurons': 0, 'percent_dead_neurons': 0.0, 'unique_dead_neurons': 0, 'percent_unique_dead_neurons': 0.0, 'shift_accuracy': 0.651676206050695, 'modularity': 0.12974866738229118}, 40: {'initial_acc': 65.1676206050695, 'percent_below_t': 0.0, 'final_acc': 65.1676206050695, 'dead_neurons': 0, 'percent_dead_neurons': 0.0, 'unique_dead_neurons': 0, 'percent_unique_dead_neurons': 0.0, 'shift_accuracy': 0.651676206050695, 'modularity': 0.129961540986316}, 30: {'initial_acc': 65.1676206050695, 'percent_below_t': 69.99999787990465, 'final_acc': 6.623058053965658, 'dead_neurons': 0, 'percent_dead_neurons': 0.0, 'unique_dead_neurons': 0, 'percent_unique_dead_neurons': 0.0, 'shift_accuracy': 0.06623058053965658, 'modularity': 0.13715738940564676}, 20: {'initial_acc': 6.623058053965658, 'percent_below_t': 80.0, 'final_acc': 2.725538293813028, 'dead_neurons': 0, 'percent_dead_neurons': 0.0, 'unique_dead_neurons': 0, 'percent_unique_dead_neurons': 0.0, 'shift_accuracy': 0.02725538293813028, 'modularity': 0.1557284589015714}, 10: {'initial_acc': 2.725538293813028, 'percent_below_t': 89.99999787990465, 'final_acc': 2.6710275279367672, 'dead_neurons': 30, 'percent_dead_neurons': 0.8108108108108109, 'unique_dead_neurons': 30, 'percent_unique_dead_neurons': 0.8108108108108109, 'shift_accuracy': 0.026710275279367673, 'modularity': 0.20134515815682968}, 5: {'initial_acc': 2.6710275279367672, 'percent_below_t': 94.99999681985699, 'final_acc': 2.6710275279367672, 'dead_neurons': 37, 'percent_dead_neurons': 1.0, 'unique_dead_neurons': 37, 'percent_unique_dead_neurons': 1.0, 'shift_accuracy': 0.026710275279367673, 'modularity': 0.25744801440519455}, 3: {'initial_acc': 2.6710275279367672, 'percent_below_t': 96.99999724387605, 'final_acc': 2.6710275279367672, 'dead_neurons': 37, 'percent_dead_neurons': 1.0, 'unique_dead_neurons': 37, 'percent_unique_dead_neurons': 1.0, 'shift_accuracy': 0.026710275279367673, 'modularity': 0.3141804755871169}, 2: {'initial_acc': 2.6710275279367672, 'percent_below_t': 97.99999957598094, 'final_acc': 2.6710275279367672, 'dead_neurons': 37, 'percent_dead_neurons': 1.0, 'unique_dead_neurons': 37, 'percent_unique_dead_neurons': 1.0, 'shift_accuracy': 0.026710275279367673, 'modularity': 0.3753107156994794}, 1: {'initial_acc': 2.6710275279367672, 'percent_below_t': 98.99999766789512, 'final_acc': 2.6710275279367672, 'dead_neurons': 37, 'percent_dead_neurons': 1.0, 'unique_dead_neurons': 37, 'percent_unique_dead_neurons': 1.0, 'shift_accuracy': 0.026710275279367673, 'modularity': 0.5495331996259295}}
