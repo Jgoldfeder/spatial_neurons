@@ -45,6 +45,7 @@ modes = [
     "cluster",
     "uniform",
     "gaussian",
+    "spatial-squared",
 ]
 
 cluster = -1
@@ -61,7 +62,7 @@ A = 20.0
 B = 20.0
 D = 1.0 
 
-if mode in ["spatial","spatial-swap","spatial-circle","cluster","uniform","gaussian"]:
+if mode in ["spatial","spatial-swap","spatial-circle","cluster","uniform","gaussian","spatial-squared"]:
     distribution="spatial"
     if mode in ["uniform","gaussian"]:
         distribution = mode
@@ -120,8 +121,9 @@ for epoch in range(num_epochs):
         if mode in ["L1"]:
             l1_norm = sum(p.abs().mean() for p in model.parameters())/len([p for p in model.parameters()])
             loss+=l1_norm*gamma
-        if mode in ["spatial","spatial-swap","spatial-learn","spatial-circle","cluster",'spatial-both',"uniform","gaussian"]:
-            loss += model.get_cost(quadratic=False)*gamma
+        if mode in ["spatial","spatial-swap","spatial-learn","spatial-circle","cluster",'spatial-both',"uniform","gaussian","spatial-squared"]:
+            use_quadratic = mode in ["spatial-squared"]
+            loss += model.get_cost(quadratic=use_quadratic)*gamma
 
         # Backward pass and optimization
         optimizer.zero_grad()
@@ -157,7 +159,7 @@ for epoch in range(num_epochs):
     print(f"Epoch [{epoch+1}/{num_epochs}] | Train Loss: {train_loss:.4f} | Train Acc: {train_acc:.2f}% "
           f"| Test Loss: {test_loss:.4f} | Test Acc: {test_acc:.2f}%")
     
-if mode in ["spatial","spatial-swap","spatial-learn","spatial-circle","cluster",'spatial-both',"uniform","gaussian"]:
+if mode in ["spatial","spatial-swap","spatial-learn","spatial-circle","cluster",'spatial-both',"uniform","gaussian","spatial-squared"]:
     # extract the model from the wrapper
     model=model.model
 
