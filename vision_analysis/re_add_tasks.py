@@ -54,14 +54,16 @@ while True:
         "spatial-swap": [20,40,80,120,162,325,650,1300,2600,5000],
         "spatial-learn":[20,40,80,120,162,325,650,1300,2600,5000],
         "spatial-both": [20,40,80,120,162,325,650,1300,2600,5000],
-        "uniform": [20,40,80,120,162,325,650,1300,2600,5000],
-        "gaussian": [20,40,80,120,162,325,650,1300,2600,5000],
-        "cluster4": [20,40,80,120,162,325,650,1300,2600,5000],
-        "cluster40": [20,40,80,120,162,325,650,1300,2600,5000],
-        "cluster400": [20,40,80,120,162,325,650,1300,2600,5000],
-        "spatial-squared": [20,40,80,120,162,325,650,1300,2600,5000],
-        "spatial-circle": [20,40,80,120,162,325,650,1300,2600,5000],
-        "spatial-learn-polar": [20,40,80,120,162,325,650,1300,2600,5000],
+        "uniform": [20,40,80,120,162,325,650,1300,2600,5000,10000],
+        "gaussian": [20,40,80,120,162,325,650,1300,2600,5000,10000],
+        "cluster4": [20,40,80,120,162,325,650,1300,2600,5000,10000],
+        "cluster40": [20,40,80,120,162,325,650,1300,2600,5000,10000],
+        "cluster400": [20,40,80,120,162,325,650,1300,2600,5000,10000],
+        "spatial-learn-polar": [20,40,80,120,162,325,650,1300,2600,5000,10000],
+        "spatial-squared": [20,40,80,120,162,325,650,1300,2600,5000,10000],
+        "spatial-circle": [20,40,80,120,162,325,650,1300,2600,5000,10000],
+        "spatial-learn-polar": [20,40,80,120,162,325,650,1300,2600,5000,10000],
+        "spatial-learn-euclidean": [20,40,80,120,162,325,650,1300,2600,5000,10000],
     }
     datasets = ['cifar100']
     models = ["vit_tiny_patch16_224"]
@@ -80,20 +82,20 @@ while True:
                     commands.append(command) 
                     
 
-    datasets = ['cifar100']  # removed 'visformer_small',
-    models = ['vit_base_patch16_224','resnet101','efficientnet_b0','vgg19','swin_base_patch4_window7_224','mobilenetv3_small_100','densenet121']
-    for dataset in datasets:
-        for model in models:
-            for mode, gammas in modes.items():
-                for gamma in gammas:
-                    path = f"./metrics/{dataset}/{mode}/{mode}:{model}:{gamma}.pkl"  
-                    command = {
-                        "dataset" : dataset,
-                        "mode" : mode,
-                        "model" : model,
-                        "gamma" : gamma,
-                    }
-                    commands.append(command) 
+    # datasets = ['cifar100']  # removed 'visformer_small',
+    # models = ['vit_base_patch16_224','resnet101','efficientnet_b0','vgg19','swin_base_patch4_window7_224','mobilenetv3_small_100','densenet121']
+    # for dataset in datasets:
+    #     for model in models:
+    #         for mode, gammas in modes.items():
+    #             for gamma in gammas:
+    #                 path = f"./metrics/{dataset}/{mode}/{mode}:{model}:{gamma}.pkl"  
+    #                 command = {
+    #                     "dataset" : dataset,
+    #                     "mode" : mode,
+    #                     "model" : model,
+    #                     "gamma" : gamma,
+    #                 }
+    #                 commands.append(command) 
     
     error=0
     total=0
@@ -112,10 +114,10 @@ while True:
             with open(name, 'rb') as f:
                 result = pickle.load(f)
             if len(result.keys()) <=4:
-                print(command)
                 error+=1
                 commands_to_add.append(command)
                 os.remove(name)
+
 
     enqueue_tasks(commands_to_add)  
     print(len(commands),total,error)

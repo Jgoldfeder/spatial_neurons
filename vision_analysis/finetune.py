@@ -47,6 +47,7 @@ modes = [
     "uniform",
     "gaussian",
     "spatial-squared",
+    "spatial-learn-euclidean",
 ]
 
 cluster = -1
@@ -69,9 +70,10 @@ if mode in ["spatial","spatial-swap","spatial-circle","cluster","uniform","gauss
         distribution = mode
     use_circle = mode in ["spatial-circle"]       
     model = spatial_wrapper_swap.SpatialNet(model,A, B, D,circle=use_circle,cluster=cluster,distribution=distribution)
-if mode in ['spatial-learn','spatial-both',"spatial-learn-polar"]:
+if mode in ['spatial-learn','spatial-both',"spatial-learn-polar" ,"spatial-learn-euclidean"]:
     use_polar = mode in ["spatial-learn-polar"]
-    model = spatial_wrapper_learnable.SpatialNet(model,A, B, D,use_polar=use_polar)
+    use_euclidean = mode in ["spatial-learn-euclidean"]
+    model = spatial_wrapper_learnable.SpatialNet(model,A, B, D,use_polar=use_polar,euclidean=use_euclidean)
 
 model = model.to(device)
 
@@ -79,7 +81,7 @@ model = model.to(device)
 criterion = nn.CrossEntropyLoss()
 optimizer = Adam(model.parameters(), lr=1e-4)
 
-if mode in ['spatial-learn','spatial-both',"spatial-learn-polar"]:
+if mode in ['spatial-learn','spatial-both',"spatial-learn-polar" ,"spatial-learn-euclidean"]:
     # we want the positions to have a higher learning rate than the weights
     optimizer = Adam([
         {'params': model.model.parameters(), 'lr': 1e-4},  
@@ -101,7 +103,7 @@ def get_epochs(num_epochs: int) -> list[int]:
 swap_epochs = get_epochs(num_epochs)
 
 for epoch in range(num_epochs):
-    if mode in ['spatial-learn','spatial-both',"spatial-learn-polar"]:
+    if mode in ['spatial-learn','spatial-both',"spatial-learn-polar" ,"spatial-learn-euclidean"]:
         # make sure neurons do not collapse or explode
         print(model.get_stats())
     if mode in ["spatial-swap",'spatial-both']:
@@ -123,7 +125,7 @@ for epoch in range(num_epochs):
         if mode in ["L1"]:
             l1_norm = sum(p.abs().mean() for p in model.parameters())/len([p for p in model.parameters()])
             loss+=l1_norm*gamma
-        if mode in ["spatial","spatial-swap","spatial-learn","spatial-learn-polar","spatial-circle","cluster",'spatial-both',"uniform","gaussian","spatial-squared"]:
+        if mode in ["spatial","spatial-swap","spatial-learn","spatial-learn-polar" ,"spatial-learn-euclidean","spatial-circle","cluster",'spatial-both',"uniform","gaussian","spatial-squared"]:
             use_quadratic = mode in ["spatial-squared"]
             loss += model.get_cost(quadratic=use_quadratic)*gamma
 
@@ -161,7 +163,7 @@ for epoch in range(num_epochs):
     print(f"Epoch [{epoch+1}/{num_epochs}] | Train Loss: {train_loss:.4f} | Train Acc: {train_acc:.2f}% "
           f"| Test Loss: {test_loss:.4f} | Test Acc: {test_acc:.2f}%")
     
-if mode in ["spatial","spatial-swap","spatial-learn","spatial-learn-polar","spatial-circle","cluster",'spatial-both',"uniform","gaussian","spatial-squared"]:
+if mode in ["spatial","spatial-swap","spatial-learn","spatial-learn-polar" ,"spatial-learn-euclidean","spatial-circle","cluster",'spatial-both',"uniform","gaussian","spatial-squared"]:
     # extract the model from the wrapper
     model=model.model
 

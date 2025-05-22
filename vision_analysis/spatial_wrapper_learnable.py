@@ -190,7 +190,8 @@ def collision_penalty(x_in, y_in, x_out, y_out, threshold):
 
 
 # Function to compute distance matrix for a given linear layer
-def compute_distance_matrix(N, M, A, B, D,cache_dir="cache",polar=False):
+# if we wanna use euclidean space constraints, we can pass in the prior layer locations
+def compute_distance_matrix(N, M, A, B, D,cache_dir="cache",polar=False,prev=None):
     x_in = torch.linspace(-A / 2, A / 2, N)
     y_in = torch.full((N,), -D / 2)
     x_out = torch.linspace(-B / 2, B / 2, M)
@@ -206,8 +207,10 @@ def compute_distance_matrix(N, M, A, B, D,cache_dir="cache",polar=False):
     x_out = nn.Parameter(x_out)
     y_out = nn.Parameter(y_out)
 
-
+    if prev is not None:
+        return nn.ParameterList( [prev[0],prev[1],x_out,y_out])
     return nn.ParameterList( [x_in,y_in,x_out,y_out])
+
 def compute_distance_matrix_cdist(o_X, o_Y, i_X, i_Y,polar=False):
     """
     Uses torch.cdist to compute the pairwise Euclidean distance matrix.
@@ -221,7 +224,7 @@ def compute_distance_matrix_cdist(o_X, o_Y, i_X, i_Y,polar=False):
     return torch.cdist(inputs, outputs)
 
 class SpatialNet(nn.Module):
-    def __init__(self, model, A, B, D, spatial_cost_scale=1,device="cuda",use_polar=False):
+    def __init__(self, model, A, B, D, spatial_cost_scale=1,device="cuda",use_polar=False,euclidean=False):
         super(SpatialNet, self).__init__()
         self.model = model
         self.linear_layers = []
@@ -238,22 +241,28 @@ class SpatialNet(nn.Module):
         self.spatial_cost_scale = spatial_cost_scale  # Scaling factor for spatial cost
         self.device=device
         self.use_polar=use_polar
+        self.euclidean=euclidean
         self._extract_layers(model)
 
     def _extract_layers(self, module):
+        prev=None
         for name, layer in module.named_children():
             if isinstance(layer, nn.Linear):
                 self.linear_layers.append(layer)
                 N = layer.in_features
                 M = layer.out_features
-                distance_matrix = compute_distance_matrix(N, M, self.A, self.B, self.D,polar=self.use_polar)
+                distance_matrix = compute_distance_matrix(N, M, self.A, self.B, self.D,polar=self.use_polar,prev=prev)
                 self.linear_distance_matrices.append(distance_matrix)
+                if self.euclidean:
+                    prev = (distance_matrix[2],distance_matrix[3])
             elif isinstance(layer, nn.Conv2d):
                 self.conv_layers.append(layer)
                 N = layer.in_channels
                 M = layer.out_channels
-                distance_matrix = compute_distance_matrix(N, M, self.A, self.B, self.D,polar=self.use_polar)
+                distance_matrix = compute_distance_matrix(N, M, self.A, self.B, self.D,polar=self.use_polar,prev=prev)
                 self.conv_distance_matrices.append(distance_matrix)
+                if self.euclidean:
+                    prev = (distance_matrix[2],distance_matrix[3])
             else:
                 self._extract_layers( layer)
 
