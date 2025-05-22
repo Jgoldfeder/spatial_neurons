@@ -1,19 +1,51 @@
 import torch
 import torch.nn as nn
-
 import os
-import torch
 import math
-
 import torch.nn.functional as F
-
-import torch
-
 from scipy.optimize import linear_sum_assignment
-import torch
 import numpy as np
 
-def optimize_coordinates(W, x_in, y_in, x_out, y_out, max_iter=100, tol=1e-6, verbose=False):
+def cartesian_to_polar(
+    x: torch.Tensor,
+    y: torch.Tensor
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """
+    Convert Cartesian coordinates to polar coordinates.
+
+    Args:
+        x: 1D (or any-shape) tensor of x-coordinates
+        y: Tensor of the same shape as x, y-coordinates
+
+    Returns:
+        r:     Tensor of radii, same shape as x
+        theta: Tensor of angles in radians, same shape as x (range: -π to π)
+    """
+    r = torch.sqrt(x**2 + y**2)
+    theta = torch.atan2(y, x)
+    return r, theta
+
+
+def polar_to_cartesian(
+    r: torch.Tensor,
+    theta: torch.Tensor
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """
+    Convert polar coordinates to Cartesian coordinates.
+
+    Args:
+        r:     Tensor of radii
+        theta: Tensor of angles in radians
+
+    Returns:
+        x: Tensor of x-coordinates
+        y: Tensor of y-coordinates
+    """
+    x = r * torch.cos(theta)
+    y = r * torch.sin(theta)
+    return x, y
+
+def optimize_coordinates(W, x_in, y_in, x_out, y_out, max_iter=100, tol=1e-6, verbose=False,polar=False):
     """
     Finds permutations of input and output coordinates (x_in, y_in, x_out, y_out)
     to minimize mean(W * cdist(input_coords, output_coords)).
@@ -27,7 +59,7 @@ def optimize_coordinates(W, x_in, y_in, x_out, y_out, max_iter=100, tol=1e-6, ve
     x_out_np = x_out.detach().cpu()
     y_out_np = y_out.detach().cpu()
 
-    C = compute_distance_matrix_cdist(x_in_np, y_in_np, x_out_np, y_out_np)
+    C = compute_distance_matrix_cdist(x_in_np, y_in_np, x_out_np, y_out_np,polar=polar)
 
 
     m, n = W.shape
@@ -158,12 +190,16 @@ def collision_penalty(x_in, y_in, x_out, y_out, threshold):
 
 
 # Function to compute distance matrix for a given linear layer
-def compute_distance_matrix(N, M, A, B, D,cache_dir="cache"):
+def compute_distance_matrix(N, M, A, B, D,cache_dir="cache",polar=False):
     x_in = torch.linspace(-A / 2, A / 2, N)
     y_in = torch.full((N,), -D / 2)
     x_out = torch.linspace(-B / 2, B / 2, M)
     y_out = torch.full((M,), D / 2)
 
+    # if polar, convert to polar
+    if polar:
+        x_in,y_in=cartesian_to_polar(x_in,y_in)
+        x_out,y_out=cartesian_to_polar(x_out,y_out)
     # Convert to learnable parameters
     x_in = nn.Parameter(x_in)
     y_in = nn.Parameter(y_in)
@@ -172,16 +208,20 @@ def compute_distance_matrix(N, M, A, B, D,cache_dir="cache"):
 
 
     return nn.ParameterList( [x_in,y_in,x_out,y_out])
-def compute_distance_matrix_cdist(o_X, o_Y, i_X, i_Y):
+def compute_distance_matrix_cdist(o_X, o_Y, i_X, i_Y,polar=False):
     """
     Uses torch.cdist to compute the pairwise Euclidean distance matrix.
     """
+    # if polar, first convert to cartesian
+    if polar:
+        o_X,o_Y = polar_to_cartesian(o_X,o_Y)
+        i_X,i_Y = polar_to_cartesian(i_X,i_Y)
     inputs = torch.stack((i_X, i_Y), dim=1)
     outputs = torch.stack((o_X, o_Y), dim=1)
     return torch.cdist(inputs, outputs)
 
 class SpatialNet(nn.Module):
-    def __init__(self, model, A, B, D, spatial_cost_scale=1,device="cuda"):
+    def __init__(self, model, A, B, D, spatial_cost_scale=1,device="cuda",use_polar=False):
         super(SpatialNet, self).__init__()
         self.model = model
         self.linear_layers = []
@@ -197,6 +237,7 @@ class SpatialNet(nn.Module):
         self.D = D
         self.spatial_cost_scale = spatial_cost_scale  # Scaling factor for spatial cost
         self.device=device
+        self.use_polar=use_polar
         self._extract_layers(model)
 
     def _extract_layers(self, module):
@@ -205,13 +246,13 @@ class SpatialNet(nn.Module):
                 self.linear_layers.append(layer)
                 N = layer.in_features
                 M = layer.out_features
-                distance_matrix = compute_distance_matrix(N, M, self.A, self.B, self.D)
+                distance_matrix = compute_distance_matrix(N, M, self.A, self.B, self.D,polar=self.use_polar)
                 self.linear_distance_matrices.append(distance_matrix)
             elif isinstance(layer, nn.Conv2d):
                 self.conv_layers.append(layer)
                 N = layer.in_channels
                 M = layer.out_channels
-                distance_matrix = compute_distance_matrix(N, M, self.A, self.B, self.D)
+                distance_matrix = compute_distance_matrix(N, M, self.A, self.B, self.D,polar=self.use_polar)
                 self.conv_distance_matrices.append(distance_matrix)
             else:
                 self._extract_layers( layer)
@@ -226,7 +267,7 @@ class SpatialNet(nn.Module):
         # Compute cost for linear layers
         for layer, dist_coords in zip(self.linear_layers, self.linear_distance_matrices):
             collision_cost+=collision_penalty(dist_coords[0],dist_coords[1],dist_coords[2],dist_coords[3], collision_threshold)
-            dist_matrix = compute_distance_matrix_cdist(dist_coords[0],dist_coords[1],dist_coords[2],dist_coords[3])
+            dist_matrix = compute_distance_matrix_cdist(dist_coords[0],dist_coords[1],dist_coords[2],dist_coords[3],polar=self.use_polar)
             weight_abs = torch.abs(layer.weight)
             if quadratic:
                 total_cost += torch.sum(weight_abs * dist_matrix.to(self.device)*dist_matrix.to(self.device))
@@ -240,7 +281,7 @@ class SpatialNet(nn.Module):
                                                  dist_coords[2], dist_coords[3],
                                                  collision_threshold)
             dist_matrix = compute_distance_matrix_cdist(dist_coords[0], dist_coords[1],
-                                                        dist_coords[2], dist_coords[3])
+                                                        dist_coords[2], dist_coords[3],polar=self.use_polar)
             # Average over the spatial kernel dimensions.
             weight_abs = torch.mean(torch.abs(layer.weight), dim=(2, 3))
             if quadratic:
@@ -254,7 +295,7 @@ class SpatialNet(nn.Module):
         for value_proj, dist_coords in zip(self.value_networks, self.value_distance_matrices):
             collision_cost+=collision_penalty(dist_coords[0],dist_coords[1],dist_coords[2],dist_coords[3], collision_threshold)
 
-            dist_matrix = compute_distance_matrix_cdist(dist_coords[0],dist_coords[1],dist_coords[2],dist_coords[3])
+            dist_matrix = compute_distance_matrix_cdist(dist_coords[0],dist_coords[1],dist_coords[2],dist_coords[3],polar=self.use_polar)
             weight_abs = torch.abs(value_proj[0])
             if quadratic:
                 total_cost += torch.sum(weight_abs * dist_matrix*dist_matrix)
@@ -278,7 +319,7 @@ class SpatialNet(nn.Module):
         total=len(self.linear_distance_matrices)+len(self.value_distance_matrices),
         for layer, dist_coords in zip(self.linear_layers, self.linear_distance_matrices):
             weight_abs = torch.abs(layer.weight)
-            x_in_perm, y_in_perm, x_out_perm, y_out_perm = optimize_coordinates(weight_abs,dist_coords[0],dist_coords[1],dist_coords[2],dist_coords[3])
+            x_in_perm, y_in_perm, x_out_perm, y_out_perm = optimize_coordinates(weight_abs,dist_coords[0],dist_coords[1],dist_coords[2],dist_coords[3],polar=self.use_polar)
             with torch.no_grad():
                 dist_coords[0].copy_(x_in_perm)
                 dist_coords[1].copy_(y_in_perm)
@@ -288,7 +329,7 @@ class SpatialNet(nn.Module):
         # Compute cost for value projection layers
         for value_proj, dist_coords in zip(self.value_networks, self.value_distance_matrices):
             weight_abs = torch.abs(value_proj[0])
-            x_in_perm, y_in_perm, x_out_perm, y_out_perm = optimize_coordinates(weight_abs,dist_coords[0],dist_coords[1],dist_coords[2],dist_coords[3])
+            x_in_perm, y_in_perm, x_out_perm, y_out_perm = optimize_coordinates(weight_abs,dist_coords[0],dist_coords[1],dist_coords[2],dist_coords[3],polar=self.use_polar)
         
             with torch.no_grad():
                 dist_coords[0].copy_(x_in_perm)
@@ -301,7 +342,7 @@ class SpatialNet(nn.Module):
 
         for layer, dist_coords in zip(self.conv_layers, self.conv_distance_matrices):
             weight_abs = torch.mean(torch.abs(layer.weight), dim=(2,3))
-            x_in_perm, y_in_perm, x_out_perm, y_out_perm = optimize_coordinates(weight_abs,dist_coords[0],dist_coords[1],dist_coords[2],dist_coords[3])
+            x_in_perm, y_in_perm, x_out_perm, y_out_perm = optimize_coordinates(weight_abs,dist_coords[0],dist_coords[1],dist_coords[2],dist_coords[3],polar=self.use_polar)
 
             with torch.no_grad():
                 dist_coords[0].copy_(x_in_perm)
