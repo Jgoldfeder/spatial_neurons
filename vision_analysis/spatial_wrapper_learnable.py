@@ -208,7 +208,7 @@ def compute_distance_matrix(N, M, A, B, D,cache_dir="cache",polar=False,prev=Non
     y_out = nn.Parameter(y_out)
 
     if prev is not None:
-        return nn.ParameterList( [prev[0],prev[1],x_out,y_out])
+        return nn.ParameterList([x_in,y_in,prev[0],prev[1]])
     return nn.ParameterList( [x_in,y_in,x_out,y_out])
 
 def compute_distance_matrix_cdist(o_X, o_Y, i_X, i_Y,polar=False):
@@ -254,7 +254,7 @@ class SpatialNet(nn.Module):
                 distance_matrix = compute_distance_matrix(N, M, self.A, self.B, self.D,polar=self.use_polar,prev=prev)
                 self.linear_distance_matrices.append(distance_matrix)
                 if self.euclidean:
-                    prev = (distance_matrix[2],distance_matrix[3])
+                    prev = (distance_matrix[0],distance_matrix[1])
             elif isinstance(layer, nn.Conv2d):
                 self.conv_layers.append(layer)
                 N = layer.in_channels
@@ -262,7 +262,7 @@ class SpatialNet(nn.Module):
                 distance_matrix = compute_distance_matrix(N, M, self.A, self.B, self.D,polar=self.use_polar,prev=prev)
                 self.conv_distance_matrices.append(distance_matrix)
                 if self.euclidean:
-                    prev = (distance_matrix[2],distance_matrix[3])
+                    prev = (distance_matrix[0],distance_matrix[1])
             else:
                 self._extract_layers( layer)
 
