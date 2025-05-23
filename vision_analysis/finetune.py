@@ -233,6 +233,8 @@ for p in [100,90,80,70,60,50,40,30,20,10,5,3,2,1]:
 
 if mode == "cluster":
     mode = mode + str(cluster)
+if mode == 'spatial-learn-ndim':
+    mode = mode + str(ndim)
 
 path = dataset_name +"/" + mode + "/" 
 file_name = mode + ":" +model_name+":"+str(gamma)
