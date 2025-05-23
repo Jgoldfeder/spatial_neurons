@@ -3,6 +3,7 @@ import numpy as np
 import timm
 import spatial_wrapper_learnable
 import spatial_wrapper_swap
+import spatial_wrapper_learnable_ndim
 import torch.nn as nn
 from torch.optim import Adam
 import torchvision
@@ -48,12 +49,20 @@ modes = [
     "gaussian",
     "spatial-squared",
     "spatial-learn-euclidean",
+    "spatial-learn-ndim",
+    "spatial-learn-squared",
 ]
 
 cluster = -1
 if mode.startswith('cluster'):
     cluster = int(mode.split("r")[1])
     mode = "cluster"
+
+ndim = -1
+if mode.startswith('spatial-learn-ndim'):
+    ndim = int(mode.split("m")[1])
+    mode = "spatial-learn-ndim"
+
 
 if mode not in modes:
     raise ValueError("Mode "+mode+" not recognized!")
@@ -70,23 +79,26 @@ if mode in ["spatial","spatial-swap","spatial-circle","cluster","uniform","gauss
         distribution = mode
     use_circle = mode in ["spatial-circle"]       
     model = spatial_wrapper_swap.SpatialNet(model,A, B, D,circle=use_circle,cluster=cluster,distribution=distribution)
-if mode in ['spatial-learn','spatial-both',"spatial-learn-polar" ,"spatial-learn-euclidean"]:
+if mode in ['spatial-learn','spatial-both',"spatial-learn-polar" ,"spatial-learn-euclidean","spatial-learn-squared"]:
     use_polar = mode in ["spatial-learn-polar"]
     use_euclidean = mode in ["spatial-learn-euclidean"]
     model = spatial_wrapper_learnable.SpatialNet(model,A, B, D,use_polar=use_polar,euclidean=use_euclidean)
-
+if mode in ["spatial-learn-ndim"]:
+    model = spatial_wrapper_learnable_ndim.SpatialNet(model,A, B, D,n_dims=ndim)
 model = model.to(device)
 
 # Define loss function and optimizer
 criterion = nn.CrossEntropyLoss()
 optimizer = Adam(model.parameters(), lr=1e-4)
 
-if mode in ['spatial-learn','spatial-both',"spatial-learn-polar" ,"spatial-learn-euclidean"]:
+if mode in ['spatial-learn','spatial-both',"spatial-learn-polar" ,"spatial-learn-euclidean","spatial-learn-ndim","spatial-learn-squared"]:
     # we want the positions to have a higher learning rate than the weights
     optimizer = Adam([
         {'params': model.model.parameters(), 'lr': 1e-4},  
         {'params': model.value_distance_matrices.parameters(), 'lr': 1e-2},
         {'params': model.linear_distance_matrices.parameters(), 'lr': 1e-2},    
+        {'params': model.conv_distance_matrices.parameters(), 'lr': 1e-2},    
+
     ])
 
 # Training loop
@@ -103,7 +115,7 @@ def get_epochs(num_epochs: int) -> list[int]:
 swap_epochs = get_epochs(num_epochs)
 
 for epoch in range(num_epochs):
-    if mode in ['spatial-learn','spatial-both',"spatial-learn-polar" ,"spatial-learn-euclidean"]:
+    if mode in ['spatial-learn','spatial-both',"spatial-learn-polar" ,"spatial-learn-euclidean","spatial-learn-ndim","spatial-learn-squared"]:
         # make sure neurons do not collapse or explode
         print(model.get_stats())
     if mode in ["spatial-swap",'spatial-both']:
@@ -125,8 +137,8 @@ for epoch in range(num_epochs):
         if mode in ["L1"]:
             l1_norm = sum(p.abs().mean() for p in model.parameters())/len([p for p in model.parameters()])
             loss+=l1_norm*gamma
-        if mode in ["spatial","spatial-swap","spatial-learn","spatial-learn-polar" ,"spatial-learn-euclidean","spatial-circle","cluster",'spatial-both',"uniform","gaussian","spatial-squared"]:
-            use_quadratic = mode in ["spatial-squared"]
+        if mode in ["spatial","spatial-swap","spatial-learn","spatial-learn-polar" ,"spatial-learn-euclidean","spatial-circle","cluster",'spatial-both',"uniform","gaussian","spatial-squared","spatial-learn-ndim","spatial-learn-squared"]:
+            use_quadratic = mode in ["spatial-squared","spatial-learn-squared"]
             loss += model.get_cost(quadratic=use_quadratic)*gamma
 
         # Backward pass and optimization
@@ -163,7 +175,7 @@ for epoch in range(num_epochs):
     print(f"Epoch [{epoch+1}/{num_epochs}] | Train Loss: {train_loss:.4f} | Train Acc: {train_acc:.2f}% "
           f"| Test Loss: {test_loss:.4f} | Test Acc: {test_acc:.2f}%")
     
-if mode in ["spatial","spatial-swap","spatial-learn","spatial-learn-polar" ,"spatial-learn-euclidean","spatial-circle","cluster",'spatial-both',"uniform","gaussian","spatial-squared"]:
+if mode in ["spatial","spatial-swap","spatial-learn","spatial-learn-polar" ,"spatial-learn-euclidean","spatial-circle","cluster",'spatial-both',"uniform","gaussian","spatial-squared","spatial-learn-ndim","spatial-learn-squared"]:
     # extract the model from the wrapper
     model=model.model
 
