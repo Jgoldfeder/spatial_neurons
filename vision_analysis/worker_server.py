@@ -73,9 +73,10 @@ def thread_main(thread_id):
 
 if __name__ == "__main__":
 
-    datasets = ['cifar100','cifar10',"pets","tiny_imagenet",'svhn','birds','caltech101','DTD']
-    models = ["vit_tiny_patch16_224","resnet50"]
-
+    # datasets = ['cifar100','cifar10',"pets","tiny_imagenet",'svhn','birds','caltech101','DTD']
+    # models = ["vit_tiny_patch16_224","resnet50"]
+    datasets = ['cifar100']
+    models = ["vit_tiny_patch16_224"]
     for name in datasets:
         print("loading.... ",name)
         train_loader, test_loader, num_classes = classification_util.get_data_loaders(name)
