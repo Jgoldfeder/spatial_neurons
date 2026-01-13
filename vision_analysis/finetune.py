@@ -16,6 +16,7 @@ import torch
 from torchvision import transforms
 from torch.utils.data import Dataset
 import pickle, os
+import copy
 
 # Set device: GPU if available, else CPU
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -24,7 +25,7 @@ mode = sys.argv[1]
 gamma = int(sys.argv[2])
 dataset_name = sys.argv[3]
 model_name = sys.argv[4]
-
+og_mode=mode
 batchsize=128
 if model_name in ['visformer_small','swin_base_patch4_window7_224']:
     batchsize=64
@@ -39,11 +40,13 @@ modes = [
     "baseline",
     "L1",
     "spatial",
+    "spatiall1",
     "spatial-swap",
     "spatial-learn",
     "spatial-learn-polar",
     "spatial-both",    
     "spatial-circle",
+    "spatial-circle-swap",
     "cluster",
     "uniform",
     "gaussian",
@@ -51,7 +54,12 @@ modes = [
     "spatial-learn-euclidean",
     "spatial-learn-ndim",
     "spatial-learn-squared",
+    "block",
 ]
+cluster = -1
+if mode.startswith('block'):
+    cluster = int(mode.split("-")[1])
+    mode = "block"
 
 cluster = -1
 if mode.startswith('cluster'):
@@ -63,21 +71,37 @@ if mode.startswith('spatial-learn-ndim'):
     ndim = int(mode.split("m")[1])
     mode = "spatial-learn-ndim"
 
-
-if mode not in modes:
-    raise ValueError("Mode "+mode+" not recognized!")
-
-
 # spatial parameters
 A = 20.0
 B = 20.0
 D = 1.0 
 
-if mode in ["spatial","spatial-swap","spatial-circle","cluster","uniform","gaussian","spatial-squared"]:
+if mode.startswith('spatial-swap'):
+    if len(mode.split("-")) > 2:
+        A = float(mode.split("-")[2])
+        B = float(mode.split("-")[2])
+    mode = "spatial-swap"
+    print("A,B=",A)
+
+if mode.startswith('spatial-learn'):
+    if len(mode.split("-")) > 2:
+        D = float(mode.split("-")[2])
+    mode = "spatial-learn"
+    print("D=",A)
+
+if mode not in modes:
+    raise ValueError("Mode "+mode+" not recognized!")
+
+
+
+# A = 0.001
+# B = 0.001
+# D = 1.0 
+if mode in ["spatial","spatial-swap","spatial-circle-swap","spatial-circle","cluster","uniform","gaussian","spatial-squared","spatiall1","block"]:
     distribution="spatial"
-    if mode in ["uniform","gaussian"]:
+    if mode in ["uniform","gaussian","block"]:
         distribution = mode
-    use_circle = mode in ["spatial-circle"]       
+    use_circle = mode in ["spatial-circle","spatial-circle-swap"]       
     model = spatial_wrapper_swap.SpatialNet(model,A, B, D,circle=use_circle,cluster=cluster,distribution=distribution)
 if mode in ['spatial-learn','spatial-both',"spatial-learn-polar" ,"spatial-learn-euclidean","spatial-learn-squared"]:
     use_polar = mode in ["spatial-learn-polar"]
@@ -118,7 +142,7 @@ for epoch in range(num_epochs):
     if mode in ['spatial-learn','spatial-both',"spatial-learn-polar" ,"spatial-learn-euclidean","spatial-learn-ndim","spatial-learn-squared"]:
         # make sure neurons do not collapse or explode
         print(model.get_stats())
-    if mode in ["spatial-swap",'spatial-both']:
+    if mode in ["spatial-swap",'spatial-both',"spatial-circle-swap","block"]:
         # optimize via swapping
         if epoch in swap_epochs:
             model.optimize()
@@ -134,12 +158,17 @@ for epoch in range(num_epochs):
         outputs = model(inputs)
         loss = criterion(outputs, labels)
 
-        if mode in ["L1"]:
-            l1_norm = sum(p.abs().mean() for p in model.parameters())/len([p for p in model.parameters()])
+        if mode in ["spatiall1","L1"]:
+            #wrong version: l1_norm = sum(p.abs().mean() for p in model.parameters())/len([p for p in model.parameters()])
+            #corret but includes all params l1_norm = sum(p.abs().sum() for p in model.parameters()) / sum(p.numel() for p in model.parameters())
+            l1_norm = util.l1_linear_and_conv(model)
             loss+=l1_norm*gamma
-        if mode in ["spatial","spatial-swap","spatial-learn","spatial-learn-polar" ,"spatial-learn-euclidean","spatial-circle","cluster",'spatial-both',"uniform","gaussian","spatial-squared","spatial-learn-ndim","spatial-learn-squared"]:
+        if mode in ["spatial-circle-swap","spatiall1","spatial","spatial-swap","spatial-learn","spatial-learn-polar" ,"spatial-learn-euclidean","spatial-circle","cluster",'spatial-both',"uniform","gaussian","spatial-squared","spatial-learn-ndim","spatial-learn-squared","block"]:
             use_quadratic = mode in ["spatial-squared","spatial-learn-squared"]
-            loss += model.get_cost(quadratic=use_quadratic)*gamma
+            factor = 1
+            if mode in ['spatiall1']:
+                factor = 100
+            loss += model.get_cost(quadratic=use_quadratic)*gamma/factor
 
         # Backward pass and optimization
         optimizer.zero_grad()
@@ -175,11 +204,11 @@ for epoch in range(num_epochs):
     print(f"Epoch [{epoch+1}/{num_epochs}] | Train Loss: {train_loss:.4f} | Train Acc: {train_acc:.2f}% "
           f"| Test Loss: {test_loss:.4f} | Test Acc: {test_acc:.2f}%")
     
-if mode in ["spatial","spatial-swap","spatial-learn","spatial-learn-polar" ,"spatial-learn-euclidean","spatial-circle","cluster",'spatial-both',"uniform","gaussian","spatial-squared","spatial-learn-ndim","spatial-learn-squared"]:
+if mode in ["spatiall1","spatial","spatial-swap","spatial-circle-swap","spatial-learn","spatial-learn-polar" ,"spatial-learn-euclidean","spatial-circle","cluster",'spatial-both',"uniform","gaussian","spatial-squared","spatial-learn-ndim","spatial-learn-squared","block"]:
     # extract the model from the wrapper
     model=model.model
 
-state_dict=model.state_dict()
+state_dict=copy.deepcopy(model.state_dict())
 
 results = {}
 # compute fixed threshold metrics
@@ -207,6 +236,7 @@ for threshold in [0.01,0.001,0.0001]:
 # compute fixed sparsity max metrics
 
 for p in [100,90,80,70,60,50,40,30,20,10,5,3,2,1]:
+    print(p)
     model.load_state_dict(state_dict)
     try:
         threshold = util.compute_pruning_threshold_cpu(model,p)
@@ -216,8 +246,28 @@ for p in [100,90,80,70,60,50,40,30,20,10,5,3,2,1]:
     dead_neuron_counts, total_dead, total_neurons = util.count_dead_neurons(state_dict,threshold)   
     # this next version also includes input neurons, and considers both incoming weights or outoing weights     
     dead_neuron_indices, unique_dead, unique_total_neurons = util.count_unique_dead_neurons(state_dict,threshold)       
-    shift_accuracy = util.evaluate_on_synthetic_shifts(model,dataset_name=dataset_name)
+    # shift_accuracy = util.evaluate_on_synthetic_shifts(model,dataset_name=dataset_name)
     modularity = util.model_modularity(model, threshold=threshold)
+    #new_modularity = util.model_modularity_new(model)
+    model.load_state_dict(state_dict)    
+    import prune
+    import structured_prune
+    #initial_acc_q, percent_pruned_actual_q, final_acc_q, stats_q = prune.evaluate_pruning_qaware_percent(model)
+    init_acc_f, pct_done_f, final_acc_f, stats_f = prune.evaluate_pruning_fisher_percent(
+        model,
+        p_percent=100-p,
+        dataset_name="cifar100",
+        num_calib_batches=8,   # try 4–16; 8 is usually fine
+        include_bias=False
+    )
+    model.load_state_dict(state_dict)
+
+    initial_acc_structured_fisher, pct_params, final_acc_structured_fisher, stats = structured_prune.evaluate_pruning_neuron_structured_percent(
+        model,
+        p_percent_params=100-p,       # target % of *parameters* removed, via whole neurons only
+        dataset_name="cifar100",
+        num_calib_batches=8,         # 4–16 usually fine
+    )
 
     results[p] = {
         "initial_acc" : initial_acc,
@@ -227,14 +277,29 @@ for p in [100,90,80,70,60,50,40,30,20,10,5,3,2,1]:
         "percent_dead_neurons": total_dead/total_neurons,   
         "unique_dead_neurons": unique_dead,
         "percent_unique_dead_neurons": unique_dead/unique_total_neurons,  
-        "shift_accuracy": shift_accuracy,
+        # "shift_accuracy": shift_accuracy,
         "modularity" : modularity,
+        #"new_modularity" : new_modularity,
+        "initial_acc_f" : init_acc_f,
+        "pct_done_f" : pct_done_f,
+        "final_acc_f" : final_acc_f,
+        "stats_f" : stats_f,        
+        "initial_acc_structured_fisher" : initial_acc_structured_fisher,        
+        "final_acc_structured_fisher" : final_acc_structured_fisher,        
     }
 
 if mode == "cluster":
     mode = mode + str(cluster)
 if mode == 'spatial-learn-ndim':
     mode = mode + str(ndim)
+if mode == 'spatial-swap' and A != 20:
+    mode = og_mode
+
+if mode == 'spatial-learn' and D != 1:
+    mode = og_mode
+
+if mode == 'block':
+    mode = og_mode
 
 path = dataset_name +"/" + mode + "/" 
 file_name = mode + ":" +model_name+":"+str(gamma)
