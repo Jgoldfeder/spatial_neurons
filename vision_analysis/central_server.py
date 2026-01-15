@@ -79,27 +79,36 @@ commands = []
 
 modes = {
     # "baseline": [0],
-    # "L1" : [50, 200, 500, 1000, 2000, 4000, 5000, 10000, 20000, 40000],
-    # "spatial": [20,40,80,120,162,325,650,1300,2600,5000],
-    # "spatial-swap": [20,40,80,120,162,325,650,1300,2600,5000],
-    # "spatial-learn":[20,40,80,120,162,325,650,1300,2600,5000],
+    "L1" : [50, 200, 500, 1000, 2000, 4000, 5000, 10000, 20000, 40000],
+    "spatial": [20,40,80,120,162,325,650,1300,2600,5000],
+    #"spatial-group4": [20,40,80,120,162,325,650,1300,2600,5000],
+    #"L1-group4" : [50, 200, 500],#, 1000, 2000, 4000, 5000, 10000, 20000, 40000],
+    #"group4" : [50, 200, 500],#, 1000, 2000, 4000, 5000, 10000, 20000, 40000],
+    "block-4" : [50, 200, 500, 1000, 2000, 4000, 5000, 10000, 20000, 40000],
+    "block-16" : [50, 200, 500, 1000, 2000, 4000, 5000, 10000, 20000, 40000],
+    
+    "spatial-swap": [20,40,80,120,162,325,650,1300,2600,5000],
+    #"spatial-learn":[20,40,80,120,162,325,650,1300,2600,5000],
+    
     # "spatial-both": [20,40,80,120,162,325,650,1300,2600,5000],
-    "uniform": [20,40,80,120,162,325,650,1300,2600,5000,10000,20000,40000],
-    "gaussian": [20,40,80,120,162,325,650,1300,2600,5000,10000,20000,40000],
-    "cluster4": [20,40,80,120,162,325,650,1300,2600,5000,10000,20000,40000],
+    
+    
+    # "uniform": [20,40,80,120,162,325,650,1300,2600,5000,10000,20000,40000],
+    # "gaussian": [20,40,80,120,162,325,650,1300,2600,5000,10000,20000,40000],
+    # "cluster4": [20,40,80,120,162,325,650,1300,2600,5000,10000,20000,40000],
     # "cluster40": [20,40,80,120,162,325,650,1300,2600,5000,10000],
     # "cluster400": [20,40,80,120,162,325,650,1300,2600,5000,10000],
     # "spatial-learn-polar": [20,40,80,120,162,325,650,1300,2600,5000,10000],
-    "spatial-squared": [1,2,3,5,10,15,20,40,80,120,162,325,650,1300,2600,5000,10000],
-    "spatial-circle": [1,5,10,20,40,80,120,162,325,650,1300,2600,5000,10000],
-    "spatial-learn-polar": [20,40,80,120,162,325,650,1300,2600,5000,10000,20000],
+    # "spatial-squared": [1,2,3,5,10,15,20,40,80,120,162,325,650,1300,2600,5000,10000],
+    # "spatial-circle": [1,5,10,20,40,80,120,162,325,650,1300,2600,5000,10000],
+    # "spatial-learn-polar": [20,40,80,120,162,325,650,1300,2600,5000,10000,20000],
     # "spatial-learn-euclidean": [20,40,80,120,162,325,650,1300,2600,5000,10000],
-    "spatial-learn-ndim3": [20,40,80,120,162,325,650,1300,2600,5000,10000],
-    "spatial-learn-ndim4": [20,40,80,120,162,325,650,1300,2600,5000,10000],
-    "spatial-learn-ndim5": [20,40,80,120,162,325,650,1300,2600,5000,10000],
-    "spatial-learn-ndim10": [20,40,80,120,162,325,650,1300,2600,5000,10000],
-    "spatial-learn-ndim100": [20,40,80,120,162,325,650,1300,2600,5000,10000],
-    "spatial-learn-squared": [1,2,3,5,10,15,20,40,80,120,162,325,650,1300,2600,5000,10000],
+    # "spatial-learn-ndim3": [20,40,80,120,162,325,650,1300,2600,5000,10000],
+    # "spatial-learn-ndim4": [20,40,80,120,162,325,650,1300,2600,5000,10000],
+    # "spatial-learn-ndim5": [20,40,80,120,162,325,650,1300,2600,5000,10000],
+    # "spatial-learn-ndim10": [20,40,80,120,162,325,650,1300,2600,5000,10000],
+    # "spatial-learn-ndim100": [20,40,80,120,162,325,650,1300,2600,5000,10000],
+    # "spatial-learn-squared": [1,2,3,5,10,15,20,40,80,120,162,325,650,1300,2600,5000,10000],
 
 }
 datasets = ['cifar100']
@@ -164,23 +173,30 @@ def report():
     Worker sends a report dict as JSON; returns 200 on success.
     """
     data = request.get_json(silent=True)
-    mode = data['mode']
-    model_name =  data['model_name']
-    gamma =  data['gamma']
-    dataset_name =  data['dataset_name']
-
-    path = dataset_name +"/" + mode + "/" 
-    file_name = mode + ":" +model_name+":"+str(gamma)
-
-    os.makedirs("./metrics/"+path, exist_ok=True)
-    os.makedirs("./models/"+path, exist_ok=True)
-    with open("./metrics/"+path+ file_name + '.pkl', 'wb') as f:
-        pickle.dump(data, f)
-
 
     if not data or not isinstance(data, dict):
         return jsonify(error="expected JSON object"), 400
-    # Process the report (e.g., log, store in DB)
+
+    # Check if metrics are empty (worker crashed)
+    # Valid metrics should have keys like '0.01', '0.001', '100', '90', etc.
+    metric_keys = [k for k in data.keys() if k not in ('mode', 'model_name', 'gamma', 'dataset_name')]
+    if not metric_keys:
+        app.logger.warning(f"Received empty metrics from worker, not saving: {data.get('mode')} {data.get('model_name')} {data.get('gamma')}")
+        return jsonify(error="empty metrics, not saved"), 400
+
+    mode = data['mode']
+    model_name = data['model_name']
+    gamma = data['gamma']
+    dataset_name = data['dataset_name']
+
+    path = dataset_name + "/" + mode + "/"
+    file_name = mode + ":" + model_name + ":" + str(gamma)
+
+    os.makedirs("./metrics/" + path, exist_ok=True)
+    os.makedirs("./models/" + path, exist_ok=True)
+    with open("./metrics/" + path + file_name + '.pkl', 'wb') as f:
+        pickle.dump(data, f)
+
     app.logger.info(f"Received report: {data}")
     return jsonify(ok=True), 200
 

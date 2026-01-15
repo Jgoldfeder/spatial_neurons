@@ -302,7 +302,8 @@ def _reorder_by_community(W_abs: np.ndarray, comm_threshold: float = 0.0):
 
     weights = W_abs[js, is_].astype(float)
     edges = [(int(i), int(I + j)) for i, j in zip(is_, js)]
-    g = ig.Graph(edges=edges, directed=False)
+    # Create graph with explicit number of vertices to handle isolated nodes
+    g = ig.Graph(n=I + O, edges=edges, directed=False)
     g.es["weight"] = weights.tolist()
     comm = g.community_multilevel(weights="weight")
     Q = float(g.modularity(comm, weights="weight"))
