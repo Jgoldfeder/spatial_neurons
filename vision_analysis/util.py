@@ -30,6 +30,125 @@ from PIL import Image, ImageDraw, ImageFont
 from PIL import Image, ImageDraw, ImageFont
 
 
+def should_regularize_layer(module_name):
+    """
+    Check if a layer should have regularization applied.
+    Skip attention layers (qkv, proj in attn blocks) but keep MLP layers.
+    Also skip the final classification layer (head/fc/classifier).
+    """
+    # Skip attention-related layers
+    if 'attn' in module_name:
+        return False
+    # Skip final classification layer (different architectures use different names)
+    # Check if it's EXACTLY 'head', 'fc', or 'classifier' (not a substring)
+    # This avoids skipping layers like 'blocks.0.mlp.fc1'
+    name_parts = module_name.split('.')
+    final_part = name_parts[-1] if name_parts else module_name
+    if final_part in ('head', 'fc', 'classifier'):
+        return False
+    return True
+
+
+def l1_linear_and_conv(model):
+    """
+    Compute L1 regularization for Linear and Conv2d layers,
+    excluding attention layers.
+
+    Returns:
+        Average L1 norm of weights in regularized layers.
+    """
+    l1_loss = 0.0
+    total_elements = 0
+
+    for name, module in model.named_modules():
+        if isinstance(module, (nn.Linear, nn.Conv2d)):
+            if should_regularize_layer(name) and hasattr(module, 'weight'):
+                l1_loss += module.weight.abs().sum()
+                total_elements += module.weight.numel()
+
+    if total_elements == 0:
+        return torch.tensor(0.0, device=next(model.parameters()).device)
+
+    return l1_loss / total_elements
+
+
+def group_lasso_linear_and_conv(model, block_size):
+    """
+    Compute group lasso regularization for Linear and Conv2d layers,
+    excluding attention layers. Groups are square blocks of size block_size x block_size.
+
+    Group lasso uses L2 norm within groups to encourage entire groups to go to zero.
+
+    Args:
+        model: PyTorch model
+        block_size: Size of square blocks (e.g., 32 for 32x32 blocks)
+
+    Returns:
+        Average group lasso penalty across all groups
+    """
+    group_loss = 0.0
+    total_groups = 0
+
+    for name, module in model.named_modules():
+        if isinstance(module, nn.Linear):
+            if should_regularize_layer(name) and hasattr(module, 'weight'):
+                weight = module.weight  # shape: (out_features, in_features)
+                out_f, in_f = weight.shape
+
+                # Pad dimensions to be divisible by block_size
+                pad_out = (block_size - out_f % block_size) % block_size
+                pad_in = (block_size - in_f % block_size) % block_size
+
+                if pad_out > 0 or pad_in > 0:
+                    weight = torch.nn.functional.pad(weight, (0, pad_in, 0, pad_out))
+
+                out_f_pad, in_f_pad = weight.shape
+                n_blocks_out = out_f_pad // block_size
+                n_blocks_in = in_f_pad // block_size
+
+                # Reshape into blocks: (n_blocks_out, block_size, n_blocks_in, block_size)
+                weight_reshaped = weight.reshape(n_blocks_out, block_size, n_blocks_in, block_size)
+                # Transpose to: (n_blocks_out, n_blocks_in, block_size, block_size)
+                weight_reshaped = weight_reshaped.permute(0, 2, 1, 3)
+
+                # Compute L2 norm for each block
+                block_norms = torch.sqrt(torch.sum(weight_reshaped ** 2, dim=(2, 3)))
+                group_loss += block_norms.sum()
+                total_groups += n_blocks_out * n_blocks_in
+
+        elif isinstance(module, nn.Conv2d):
+            if should_regularize_layer(name) and hasattr(module, 'weight'):
+                # For conv: average over spatial dims first, then apply group lasso
+                weight = module.weight  # shape: (out_ch, in_ch, k, k)
+                weight_2d = torch.mean(weight, dim=(2, 3))  # shape: (out_ch, in_ch)
+                out_ch, in_ch = weight_2d.shape
+
+                # Pad dimensions to be divisible by block_size
+                pad_out = (block_size - out_ch % block_size) % block_size
+                pad_in = (block_size - in_ch % block_size) % block_size
+
+                if pad_out > 0 or pad_in > 0:
+                    weight_2d = torch.nn.functional.pad(weight_2d, (0, pad_in, 0, pad_out))
+
+                out_ch_pad, in_ch_pad = weight_2d.shape
+                n_blocks_out = out_ch_pad // block_size
+                n_blocks_in = in_ch_pad // block_size
+
+                # Reshape into blocks
+                weight_reshaped = weight_2d.reshape(n_blocks_out, block_size, n_blocks_in, block_size)
+                weight_reshaped = weight_reshaped.permute(0, 2, 1, 3)
+
+                # Compute L2 norm for each block
+                block_norms = torch.sqrt(torch.sum(weight_reshaped ** 2, dim=(2, 3)))
+                group_loss += block_norms.sum()
+                total_groups += n_blocks_out * n_blocks_in
+
+    if total_groups == 0:
+        return torch.tensor(0.0, device=next(model.parameters()).device)
+
+    return group_loss / total_groups
+
+
 def make_image_grid(
     image_grid,
     row_titles=None,
@@ -456,6 +575,7 @@ def count_unique_dead_neurons(state_dict, threshold=1e-3):
     """
     Counts unique dead neurons: those with all-zero incoming or outgoing weights,
     avoiding double-counting neurons that satisfy both conditions.
+    ONLY counts regularized layers (skipping attention, consistent with training).
 
     Parameters:
         state_dict (dict): Model state_dict
@@ -470,7 +590,9 @@ def count_unique_dead_neurons(state_dict, threshold=1e-3):
     total_neurons = 0
     total_dead = 0
 
-    weight_keys = [k for k in state_dict if "weight" in k and state_dict[k].ndim == 2]
+    # Only include regularized layers (skip attention)
+    weight_keys = [k for k in state_dict
+                   if "weight" in k and state_dict[k].ndim == 2 and should_regularize_layer(k)]
     weight_keys = sorted(weight_keys)
 
     for i, name in enumerate(weight_keys):
@@ -507,15 +629,16 @@ def count_unique_dead_neurons(state_dict, threshold=1e-3):
 
 def count_dead_neurons(state_dict, threshold=1e-3):
     """
-    Counts dead neurons in 2D weight matrices.
-    
+    Counts dead neurons in 2D weight matrices, ONLY for regularized layers
+    (skipping attention layers, consistent with training).
+
     A dead neuron is defined as one for which all incoming weights (i.e. all elements in its row)
     have an absolute value below the given threshold.
-    
+
     Parameters:
         state_dict (dict): The state dictionary loaded from the model.
         threshold (float): The threshold below which a weight is considered "dead".
-        
+
     Returns:
         dead_neuron_counts (dict): Dictionary with layer names as keys and number of dead neurons as values.
         total_dead (int): Total count of dead neurons.
@@ -524,10 +647,11 @@ def count_dead_neurons(state_dict, threshold=1e-3):
     dead_neuron_counts = {}
     total_neurons = 0
     total_dead = 0
-    
+
     for name, param in state_dict.items():
         # Check if the parameter is a weight matrix (2D tensor) from a linear layer
-        if "weight" in name and param.ndim == 2:
+        # AND it's a regularized layer (skip attention)
+        if "weight" in name and param.ndim == 2 and should_regularize_layer(name):
             # Detach and convert to a NumPy array for easier analysis
             weight = param.detach().cpu().numpy()
             out_features = weight.shape[0]  # each row corresponds to one neuron
@@ -539,7 +663,7 @@ def count_dead_neurons(state_dict, threshold=1e-3):
             dead_neuron_counts[name] = layer_dead
             total_neurons += out_features
             total_dead += layer_dead
-    
+
     return dead_neuron_counts, total_dead, total_neurons
     
 def visualize_vit_architecture(model, neuron_count=192, connection_threshold=0.1, include_identity=False):
@@ -766,18 +890,26 @@ def evaluate_pruning(vit, threshold, device=None, batch_size=128,dataset_name="c
     initial_acc = evaluate_model(vit)
 
     # Count the total number of weights and the number of weights below threshold
+    # ONLY count regularized layers (skip attention, same as training)
     total_params = 0
     small_params = 0
-    for param in vit.parameters():
-        total_params += param.numel()
-        small_params += (param.abs() < threshold).sum().item()
+    for name, module in vit.named_modules():
+        if isinstance(module, (nn.Linear, nn.Conv2d)):
+            if should_regularize_layer(name) and hasattr(module, 'weight'):
+                param = module.weight
+                total_params += param.numel()
+                small_params += (param.abs() < threshold).sum().item()
     percent_small = 100.0 * small_params / total_params
 
     # Zero out all parameters whose absolute value is below the threshold
+    # ONLY prune regularized layers (skip attention, same as training)
     with torch.no_grad():
-        for param in vit.parameters():
-            mask = param.abs() < threshold
-            param[mask] = 0.0
+        for name, module in vit.named_modules():
+            if isinstance(module, (nn.Linear, nn.Conv2d)):
+                if should_regularize_layer(name) and hasattr(module, 'weight'):
+                    param = module.weight
+                    mask = param.abs() < threshold
+                    param[mask] = 0.0
 
     # Evaluate the pruned model accuracy
     final_acc = evaluate_model(vit)
@@ -1066,8 +1198,9 @@ import torch
 
 def compute_pruning_threshold(model, p):
     """
-    Computes the threshold value t for pruning such that, if all weights with magnitudes below t 
+    Computes the threshold value t for pruning such that, if all weights with magnitudes below t
     are pruned (set to zero), approximately p percent of the weights in the model remain.
+    ONLY considers regularized layers (skips attention, consistent with training).
 
     Parameters:
     -----------
@@ -1081,7 +1214,7 @@ def compute_pruning_threshold(model, p):
     --------
     float
         The threshold value t for pruning.
-        
+
     Raises:
     -------
     ValueError
@@ -1090,34 +1223,51 @@ def compute_pruning_threshold(model, p):
     if p <= 0 or p > 100:
         raise ValueError("p must be in the interval (0, 100].")
 
-    # Gather all absolute weight values from the model into one tensor.
-    all_abs_weights = torch.cat([param.detach().abs().flatten() for param in model.parameters()])
+    # Gather all absolute weight values from REGULARIZED layers only
+    weight_tensors = []
+    for name, module in model.named_modules():
+        if isinstance(module, (nn.Linear, nn.Conv2d)):
+            if should_regularize_layer(name) and hasattr(module, 'weight'):
+                weight_tensors.append(module.weight.detach().abs().flatten())
+
+    all_abs_weights = torch.cat(weight_tensors)
 
     # Determine the quantile such that (100 - p)% of weights are below the threshold.
     # p percent of weights remaining means we want to prune 1 - (p/100) fraction of weights.
     quantile_value = 1.0 - (p / 100.0)
     threshold = torch.quantile(all_abs_weights, quantile_value)
-    
+
     return threshold.item()
 
 
 def compute_pruning_threshold_cpu(model, p):
+    """
+    Computes pruning threshold for p% of weights to remain.
+    ONLY considers regularized layers (skips attention, consistent with training).
+    Uses CPU to avoid memory issues on GPU.
+    """
     if not (0 < p <= 100):
         raise ValueError("p must be in (0,100]")
 
-    # 1) Count total parameters
-    total = sum(param.numel() for param in model.parameters())
+    # 1) Count total parameters in REGULARIZED layers only
+    total = 0
+    for name, module in model.named_modules():
+        if isinstance(module, (nn.Linear, nn.Conv2d)):
+            if should_regularize_layer(name) and hasattr(module, 'weight'):
+                total += module.weight.numel()
 
     # 2) Allocate one big CPU tensor
     all_abs = torch.empty(total, dtype=torch.float32, device="cpu")
 
-    # 3) Copy into it
+    # 3) Copy regularized weights into it
     idx = 0
-    for param in model.parameters():
-        flat = param.detach().abs().flatten().cpu()
-        n = flat.numel()
-        all_abs[idx:idx+n].copy_(flat)
-        idx += n
+    for name, module in model.named_modules():
+        if isinstance(module, (nn.Linear, nn.Conv2d)):
+            if should_regularize_layer(name) and hasattr(module, 'weight'):
+                flat = module.weight.detach().abs().flatten().cpu()
+                n = flat.numel()
+                all_abs[idx:idx+n].copy_(flat)
+                idx += n
 
     # 4) Compute exact quantile (torch.kthvalue under the hood)
     #    We want the kth largest where k = ceil((p/100)*total)

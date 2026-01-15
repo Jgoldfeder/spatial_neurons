@@ -6,6 +6,8 @@ import torch
 import matplotlib.pyplot as plt
 import pickle
 import os
+from block_sparsity import block_sparsity_after_reorder
+
 model = timm.create_model('vit_base_patch16_224', pretrained=False)
 num_features = model.head.in_features
 model.head = nn.Linear(num_features, 100)
@@ -45,8 +47,10 @@ for reg_type in reg_types:
                 model.load_state_dict(state_dict)
                 threshold = util.compute_pruning_threshold_cpu(model,p)
                 initial_acc, percent_small, final_acc = util.evaluate_vit_pruning(model, threshold=threshold,cifar100=cifar100)
-                dead_neuron_counts, total_dead, total_neurons = util.count_dead_neurons(state_dict,threshold)        
-    
+                dead_neuron_counts, total_dead, total_neurons = util.count_dead_neurons(state_dict,threshold)
+
+                # Block sparsity after community reordering
+                block_stats = block_sparsity_after_reorder(model, block_size=16, sparsity_threshold=threshold)
 
                 result[p] = {
                     "initial_acc" : initial_acc,
@@ -54,6 +58,8 @@ for reg_type in reg_types:
                     "final_acc" : final_acc,
                     "dead_neurons": total_dead,
                     "percent_dead_neurons": total_dead/total_neurons,
+                    "block_sparsity_reordered": block_stats['block_sparsity_ratio'],
+                    "avg_modularity": block_stats['avg_modularity'],
                 }
 
 

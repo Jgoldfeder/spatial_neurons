@@ -17,6 +17,7 @@ from torchvision import transforms
 from torch.utils.data import Dataset
 import pickle, os
 import copy
+from block_sparsity import block_sparsity_after_reorder
 
 # Set device: GPU if available, else CPU
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -44,7 +45,7 @@ modes = [
     "spatial-swap",
     "spatial-learn",
     "spatial-learn-polar",
-    "spatial-both",    
+    "spatial-both",
     "spatial-circle",
     "spatial-circle-swap",
     "cluster",
@@ -55,13 +56,28 @@ modes = [
     "spatial-learn-ndim",
     "spatial-learn-squared",
     "block",
+    "group",           # group lasso only
+    "spatial-group",   # spatial + group lasso
+    "L1-group",        # L1 + group lasso
 ]
+
+# Parse group size for group lasso modes
+group_size = -1
+if mode.startswith('L1-group'):
+    group_size = int(mode.split("group")[1])
+    mode = "L1-group"
+elif mode.startswith('spatial-group'):
+    group_size = int(mode.split("group")[1])
+    mode = "spatial-group"
+elif mode.startswith('group') and mode != "gaussian":  # avoid matching "gaussian"
+    group_size = int(mode.split("group")[1])
+    mode = "group"
+
 cluster = -1
 if mode.startswith('block'):
     cluster = int(mode.split("-")[1])
     mode = "block"
 
-cluster = -1
 if mode.startswith('cluster'):
     cluster = int(mode.split("r")[1])
     mode = "cluster"
@@ -97,11 +113,11 @@ if mode not in modes:
 # A = 0.001
 # B = 0.001
 # D = 1.0 
-if mode in ["spatial","spatial-swap","spatial-circle-swap","spatial-circle","cluster","uniform","gaussian","spatial-squared","spatiall1","block"]:
+if mode in ["spatial","spatial-swap","spatial-circle-swap","spatial-circle","cluster","uniform","gaussian","spatial-squared","spatiall1","block","spatial-group"]:
     distribution="spatial"
     if mode in ["uniform","gaussian","block"]:
         distribution = mode
-    use_circle = mode in ["spatial-circle","spatial-circle-swap"]       
+    use_circle = mode in ["spatial-circle","spatial-circle-swap"]
     model = spatial_wrapper_swap.SpatialNet(model,A, B, D,circle=use_circle,cluster=cluster,distribution=distribution)
 if mode in ['spatial-learn','spatial-both',"spatial-learn-polar" ,"spatial-learn-euclidean","spatial-learn-squared"]:
     use_polar = mode in ["spatial-learn-polar"]
@@ -158,12 +174,15 @@ for epoch in range(num_epochs):
         outputs = model(inputs)
         loss = criterion(outputs, labels)
 
-        if mode in ["spatiall1","L1"]:
+        if mode in ["spatiall1","L1","L1-group"]:
             #wrong version: l1_norm = sum(p.abs().mean() for p in model.parameters())/len([p for p in model.parameters()])
             #corret but includes all params l1_norm = sum(p.abs().sum() for p in model.parameters()) / sum(p.numel() for p in model.parameters())
             l1_norm = util.l1_linear_and_conv(model)
             loss+=l1_norm*gamma
-        if mode in ["spatial-circle-swap","spatiall1","spatial","spatial-swap","spatial-learn","spatial-learn-polar" ,"spatial-learn-euclidean","spatial-circle","cluster",'spatial-both',"uniform","gaussian","spatial-squared","spatial-learn-ndim","spatial-learn-squared","block"]:
+        if mode in ["group","spatial-group","L1-group"]:
+            group_lasso = util.group_lasso_linear_and_conv(model, group_size)
+            loss += group_lasso*gamma
+        if mode in ["spatial-circle-swap","spatiall1","spatial","spatial-swap","spatial-learn","spatial-learn-polar" ,"spatial-learn-euclidean","spatial-circle","cluster",'spatial-both',"uniform","gaussian","spatial-squared","spatial-learn-ndim","spatial-learn-squared","block","spatial-group"]:
             use_quadratic = mode in ["spatial-squared","spatial-learn-squared"]
             factor = 1
             if mode in ['spatiall1']:
@@ -217,20 +236,20 @@ for threshold in [0.01,0.001,0.0001]:
     initial_acc, percent_small, final_acc = util.evaluate_pruning(model, threshold=threshold,dataset_name=dataset_name)
     dead_neuron_counts, total_dead, total_neurons = util.count_dead_neurons(state_dict,threshold)   
     # this next version also includes input neurons, and considers both incoming weights or outoing weights     
-    dead_neuron_indices, unique_dead, unique_total_neurons = util.count_unique_dead_neurons(state_dict,threshold)       
-    shift_accuracy = util.evaluate_on_synthetic_shifts(model,dataset_name=dataset_name)
+    dead_neuron_indices, unique_dead, unique_total_neurons = util.count_unique_dead_neurons(state_dict,threshold)
     modularity = util.model_modularity(model, threshold=threshold)
+    block_stats = block_sparsity_after_reorder(model, block_size=16, sparsity_threshold=threshold)
 
     results[threshold] = {
         "initial_acc" : initial_acc,
         "percent_below_t" : percent_small,
         "final_acc" : final_acc,
         "dead_neurons": total_dead,
-        "percent_dead_neurons": total_dead/total_neurons,   
+        "percent_dead_neurons": total_dead/total_neurons,
         "unique_dead_neurons": unique_dead,
-        "percent_unique_dead_neurons": unique_dead/unique_total_neurons,  
-        "shift_accuracy": shift_accuracy,
+        "percent_unique_dead_neurons": unique_dead/unique_total_neurons,
         "modularity" : modularity,
+        "block_sparsity_reordered": block_stats['block_sparsity_ratio'],
     }
 
 # compute fixed sparsity max metrics
@@ -248,44 +267,19 @@ for p in [100,90,80,70,60,50,40,30,20,10,5,3,2,1]:
     dead_neuron_indices, unique_dead, unique_total_neurons = util.count_unique_dead_neurons(state_dict,threshold)       
     # shift_accuracy = util.evaluate_on_synthetic_shifts(model,dataset_name=dataset_name)
     modularity = util.model_modularity(model, threshold=threshold)
-    #new_modularity = util.model_modularity_new(model)
-    model.load_state_dict(state_dict)    
-    import prune
-    import structured_prune
-    #initial_acc_q, percent_pruned_actual_q, final_acc_q, stats_q = prune.evaluate_pruning_qaware_percent(model)
-    init_acc_f, pct_done_f, final_acc_f, stats_f = prune.evaluate_pruning_fisher_percent(
-        model,
-        p_percent=100-p,
-        dataset_name="cifar100",
-        num_calib_batches=8,   # try 4–16; 8 is usually fine
-        include_bias=False
-    )
+    block_stats = block_sparsity_after_reorder(model, block_size=16, sparsity_threshold=threshold)
     model.load_state_dict(state_dict)
-
-    initial_acc_structured_fisher, pct_params, final_acc_structured_fisher, stats = structured_prune.evaluate_pruning_neuron_structured_percent(
-        model,
-        p_percent_params=100-p,       # target % of *parameters* removed, via whole neurons only
-        dataset_name="cifar100",
-        num_calib_batches=8,         # 4–16 usually fine
-    )
 
     results[p] = {
         "initial_acc" : initial_acc,
         "percent_below_t" : percent_small,
         "final_acc" : final_acc,
         "dead_neurons": total_dead,
-        "percent_dead_neurons": total_dead/total_neurons,   
+        "percent_dead_neurons": total_dead/total_neurons,
         "unique_dead_neurons": unique_dead,
-        "percent_unique_dead_neurons": unique_dead/unique_total_neurons,  
-        # "shift_accuracy": shift_accuracy,
+        "percent_unique_dead_neurons": unique_dead/unique_total_neurons,
         "modularity" : modularity,
-        #"new_modularity" : new_modularity,
-        "initial_acc_f" : init_acc_f,
-        "pct_done_f" : pct_done_f,
-        "final_acc_f" : final_acc_f,
-        "stats_f" : stats_f,        
-        "initial_acc_structured_fisher" : initial_acc_structured_fisher,        
-        "final_acc_structured_fisher" : final_acc_structured_fisher,        
+        "block_sparsity_reordered": block_stats['block_sparsity_ratio'],
     }
 
 if mode == "cluster":
@@ -301,7 +295,11 @@ if mode == 'spatial-learn' and D != 1:
 if mode == 'block':
     mode = og_mode
 
-path = dataset_name +"/" + mode + "/" 
+# Restore original mode name for group lasso modes to preserve block size
+if mode in ["group", "spatial-group", "L1-group"]:
+    mode = og_mode
+
+path = dataset_name +"/" + mode + "/"
 file_name = mode + ":" +model_name+":"+str(gamma)
 
 os.makedirs("./metrics/"+path, exist_ok=True)

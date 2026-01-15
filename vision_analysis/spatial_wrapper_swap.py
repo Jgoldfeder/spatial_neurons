@@ -5,6 +5,7 @@ import torch
 import torch.nn as nn
 import os
 import math
+import block_matrix
 
 def l1_non_linear_weights(model, l1_lambda=1):
     l1_loss = 0.0
@@ -229,12 +230,21 @@ class SpatialNet(nn.Module):
         self.spatial_cost_scale = spatial_cost_scale  # Scaling factor for spatial cost
         self.device=device
         self.distribution=distribution
-        if self.distribution not in ['spatial','cluster','uniform','gaussian']:
+        if self.distribution not in ['spatial','cluster','uniform','gaussian','block']:
             raise ValueError("Illegal Distribuion!")
         self._extract_layers(model)
 
-    def _extract_layers(self, module):
+    def _extract_layers(self, module, prefix=''):
         for name, layer in module.named_children():
+            full_name = f'{prefix}.{name}' if prefix else name
+            # Skip attention layers
+            if 'attn' in full_name:
+                self._extract_layers(layer, full_name)
+                continue
+            # Skip final classification layer (head/fc/classifier)
+            if name in ('head', 'fc', 'classifier'):
+                continue
+
             if isinstance(layer, nn.Linear):
                 self.linear_layers.append(layer)
                 N = layer.in_features
@@ -247,6 +257,8 @@ class SpatialNet(nn.Module):
                     distance_matrix = torch.rand(M, N)
                 elif self.distribution == 'gaussian':
                     distance_matrix = torch.randn(M, N).abs()
+                elif self.distribution == 'block':
+                    distance_matrix = block_matrix.block_distance_matrix(M, N, group=self.cluster if self.cluster>0 else 32, device=self.device)
                 else:
                     distance_matrix = compute_distance_matrix(N, M, self.A, self.B, self.D)
                 self.linear_distance_matrices.append(distance_matrix)
@@ -263,9 +275,9 @@ class SpatialNet(nn.Module):
                         distance_matrix = compute_distance_matrix_circle(in_channels, out_channels, self.A, self.B, self.D)
                     else:
                         distance_matrix = compute_distance_matrix(in_channels, out_channels, self.A, self.B, self.D)
-                    self.conv_distance_matrices.append(distance_matrix) 
+                    self.conv_distance_matrices.append(distance_matrix)
             else:
-                self._extract_layers( layer)
+                self._extract_layers(layer, full_name)
 
     def get_cost(self,quadratic=False):
         total_cost = 0.0
@@ -300,7 +312,7 @@ class SpatialNet(nn.Module):
             total_params += weight_abs.numel()
 
         # Apply the scaling factor to the spatial cost
-        return self.spatial_cost_scale * total_cost / total_params + l1_non_linear_weights(self)
+        return self.spatial_cost_scale * total_cost / total_params
 
     def optimize(self):
         print("init",self.get_cost(),flush=True)
