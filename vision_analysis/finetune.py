@@ -300,6 +300,9 @@ if mode == 'spatial-learn-ndim':
 if mode == 'spatial-swap' and A != 20:
     mode = og_mode
 
+if mode == 'spatial-circle-swap' and D != 1:
+    mode = og_mode
+
 if mode == 'spatial-learn' and D != 1:
     mode = og_mode
 
