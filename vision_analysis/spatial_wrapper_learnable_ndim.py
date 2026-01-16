@@ -123,8 +123,17 @@ class SpatialNet(nn.Module):
 
         self._extract_layers(self.model)
 
-    def _extract_layers(self, module, prev=None):
-        for layer in module.children():
+    def _extract_layers(self, module, prev=None, prefix=''):
+        for name, layer in module.named_children():
+            full_name = f'{prefix}.{name}' if prefix else name
+            # Skip attention layers
+            if 'attn' in full_name:
+                self._extract_layers(layer, prev, full_name)
+                continue
+            # Skip final classification layer (head/fc/classifier)
+            if name in ('head', 'fc', 'classifier'):
+                continue
+
             if isinstance(layer, nn.Linear):
                 self.linear_layers.append(layer)
                 N, M = layer.in_features, layer.out_features
@@ -138,7 +147,7 @@ class SpatialNet(nn.Module):
                 self.conv_distance_matrices.append(dist)
                 prev = (dist[0], dist[1])
             else:
-                self._extract_layers(layer, prev)
+                self._extract_layers(layer, prev, full_name)
 
     def get_cost(self, quadratic=False):
         total_cost, total_params, collision_cost = 0.0, 0, 0.0

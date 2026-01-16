@@ -244,9 +244,18 @@ class SpatialNet(nn.Module):
         self.euclidean=euclidean
         self._extract_layers(model)
 
-    def _extract_layers(self, module):
+    def _extract_layers(self, module, prefix=''):
         prev=None
         for name, layer in module.named_children():
+            full_name = f'{prefix}.{name}' if prefix else name
+            # Skip attention layers
+            if 'attn' in full_name:
+                self._extract_layers(layer, full_name)
+                continue
+            # Skip final classification layer (head/fc/classifier)
+            if name in ('head', 'fc', 'classifier'):
+                continue
+
             if isinstance(layer, nn.Linear):
                 self.linear_layers.append(layer)
                 N = layer.in_features
@@ -264,7 +273,7 @@ class SpatialNet(nn.Module):
                 if self.euclidean:
                     prev = (distance_matrix[0],distance_matrix[1])
             else:
-                self._extract_layers( layer)
+                self._extract_layers(layer, full_name)
 
     def get_cost(self,quadratic=False):
         total_cost = 0.0
@@ -314,7 +323,7 @@ class SpatialNet(nn.Module):
 
         # Apply the scaling factor to the spatial cost
         #print(self.spatial_cost_scale * total_cost / total_params,collision_cost/total_params)
-        return self.spatial_cost_scale * total_cost / total_params + self.spatial_cost_scale * collision_cost / total_params + l1_non_linear_weights(self.model)
+        return self.spatial_cost_scale * total_cost / total_params + self.spatial_cost_scale * collision_cost / total_params
 
     def get_stats(self):
         return compute_tensor_stats(self.linear_distance_matrices+self.value_distance_matrices )
