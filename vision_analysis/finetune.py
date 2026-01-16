@@ -48,6 +48,8 @@ modes = [
     "spatial-both",
     "spatial-circle",
     "spatial-circle-swap",
+    "spatial-circle-l1",  # spatial-circle + L1 combined
+    "spatial-circle-l1-swap",  # spatial-circle + L1 + Hungarian swapping
     "cluster",
     "uniform",
     "gaussian",
@@ -98,7 +100,24 @@ A = 20.0
 B = 20.0
 D = 1.0 
 
-if mode.startswith('spatial-circle-swap'):
+gamma_l1 = -1  # -1 means use the shared gamma
+if mode.startswith('spatial-circle-l1-swap'):
+    parts = mode.split("-")
+    if len(parts) > 4:
+        D = float(parts[4])
+    if len(parts) > 5:
+        gamma_l1 = float(parts[5])
+    mode = "spatial-circle-l1-swap"
+    print("D=",D,"gamma_l1=",gamma_l1)
+elif mode.startswith('spatial-circle-l1'):
+    parts = mode.split("-")
+    if len(parts) > 3:
+        D = float(parts[3])
+    if len(parts) > 4:
+        gamma_l1 = float(parts[4])
+    mode = "spatial-circle-l1"
+    print("D=",D,"gamma_l1=",gamma_l1)
+elif mode.startswith('spatial-circle-swap'):
     if len(mode.split("-")) > 3:
         D = float(mode.split("-")[3])
     mode = "spatial-circle-swap"
@@ -124,11 +143,11 @@ if mode not in modes:
 # A = 0.001
 # B = 0.001
 # D = 1.0 
-if mode in ["spatial","spatial-swap","spatial-circle-swap","spatial-circle","cluster","uniform","gaussian","spatial-squared","spatiall1","block","spatial-group"]:
+if mode in ["spatial","spatial-swap","spatial-circle-swap","spatial-circle","spatial-circle-l1","spatial-circle-l1-swap","cluster","uniform","gaussian","spatial-squared","spatiall1","block","spatial-group"]:
     distribution="spatial"
     if mode in ["uniform","gaussian","block"]:
         distribution = mode
-    use_circle = mode in ["spatial-circle","spatial-circle-swap"]
+    use_circle = mode in ["spatial-circle","spatial-circle-swap","spatial-circle-l1","spatial-circle-l1-swap"]
     model = spatial_wrapper_swap.SpatialNet(model,A, B, D,circle=use_circle,cluster=cluster,block_group=block_group,block_binary=block_binary,distribution=distribution)
 if mode in ['spatial-learn','spatial-both',"spatial-learn-polar" ,"spatial-learn-euclidean","spatial-learn-squared"]:
     use_polar = mode in ["spatial-learn-polar"]
@@ -169,7 +188,7 @@ for epoch in range(num_epochs):
     if mode in ['spatial-learn','spatial-both',"spatial-learn-polar" ,"spatial-learn-euclidean","spatial-learn-ndim","spatial-learn-squared"]:
         # make sure neurons do not collapse or explode
         print(model.get_stats())
-    if mode in ["spatial-swap",'spatial-both',"spatial-circle-swap","block"]:
+    if mode in ["spatial-swap",'spatial-both',"spatial-circle-swap","spatial-circle-l1-swap","block"]:
         # optimize via swapping
         if epoch in swap_epochs:
             model.optimize()
@@ -185,15 +204,16 @@ for epoch in range(num_epochs):
         outputs = model(inputs)
         loss = criterion(outputs, labels)
 
-        if mode in ["spatiall1","L1","L1-group"]:
+        if mode in ["spatiall1","L1","L1-group","spatial-circle-l1","spatial-circle-l1-swap"]:
             #wrong version: l1_norm = sum(p.abs().mean() for p in model.parameters())/len([p for p in model.parameters()])
             #corret but includes all params l1_norm = sum(p.abs().sum() for p in model.parameters()) / sum(p.numel() for p in model.parameters())
             l1_norm = util.l1_linear_and_conv(model)
-            loss+=l1_norm*gamma
+            effective_gamma_l1 = gamma_l1 if gamma_l1 >= 0 else gamma
+            loss+=l1_norm*effective_gamma_l1
         if mode in ["group","spatial-group","L1-group"]:
             group_lasso = util.group_lasso_linear_and_conv(model, group_size)
             loss += group_lasso*gamma
-        if mode in ["spatial-circle-swap","spatiall1","spatial","spatial-swap","spatial-learn","spatial-learn-polar" ,"spatial-learn-euclidean","spatial-circle","cluster",'spatial-both',"uniform","gaussian","spatial-squared","spatial-learn-ndim","spatial-learn-squared","block","spatial-group"]:
+        if mode in ["spatial-circle-swap","spatiall1","spatial","spatial-swap","spatial-learn","spatial-learn-polar" ,"spatial-learn-euclidean","spatial-circle","spatial-circle-l1","spatial-circle-l1-swap","cluster",'spatial-both',"uniform","gaussian","spatial-squared","spatial-learn-ndim","spatial-learn-squared","block","spatial-group"]:
             use_quadratic = mode in ["spatial-squared","spatial-learn-squared"]
             factor = 1
             if mode in ['spatiall1']:
@@ -234,7 +254,7 @@ for epoch in range(num_epochs):
     print(f"Epoch [{epoch+1}/{num_epochs}] | Train Loss: {train_loss:.4f} | Train Acc: {train_acc:.2f}% "
           f"| Test Loss: {test_loss:.4f} | Test Acc: {test_acc:.2f}%")
     
-if mode in ["spatiall1","spatial","spatial-swap","spatial-circle-swap","spatial-learn","spatial-learn-polar" ,"spatial-learn-euclidean","spatial-circle","cluster",'spatial-both',"uniform","gaussian","spatial-squared","spatial-learn-ndim","spatial-learn-squared","block"]:
+if mode in ["spatiall1","spatial","spatial-swap","spatial-circle-swap","spatial-learn","spatial-learn-polar" ,"spatial-learn-euclidean","spatial-circle","spatial-circle-l1","spatial-circle-l1-swap","cluster",'spatial-both',"uniform","gaussian","spatial-squared","spatial-learn-ndim","spatial-learn-squared","block"]:
     # extract the model from the wrapper
     model=model.model
 
@@ -301,6 +321,12 @@ if mode == 'spatial-swap' and A != 20:
     mode = og_mode
 
 if mode == 'spatial-circle-swap' and D != 1:
+    mode = og_mode
+
+if mode == 'spatial-circle-l1' and (D != 1 or gamma_l1 >= 0):
+    mode = og_mode
+
+if mode == 'spatial-circle-l1-swap' and (D != 1 or gamma_l1 >= 0):
     mode = og_mode
 
 if mode == 'spatial-learn' and D != 1:
