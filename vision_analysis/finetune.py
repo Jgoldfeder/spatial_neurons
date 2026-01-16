@@ -154,7 +154,7 @@ def get_epochs(num_epochs: int) -> list[int]:
     return [int(round(i * step)) for i in range(10)]
 swap_epochs = get_epochs(num_epochs)
 
-for epoch in range(num_epochs):
+for epoch in range(num_epochs*10):
     if mode in ['spatial-learn','spatial-both',"spatial-learn-polar" ,"spatial-learn-euclidean","spatial-learn-ndim","spatial-learn-squared"]:
         # make sure neurons do not collapse or explode
         print(model.get_stats())
@@ -223,6 +223,9 @@ for epoch in range(num_epochs):
     print(f"Epoch [{epoch+1}/{num_epochs}] | Train Loss: {train_loss:.4f} | Train Acc: {train_acc:.2f}% "
           f"| Test Loss: {test_loss:.4f} | Test Acc: {test_acc:.2f}%")
     
+
+    get_perecent_small = util.get_percent_small_weights(model,threshold=0.001)
+    print("Percent weights below 0.001:",get_perecent_small)
 if mode in ["spatiall1","spatial","spatial-swap","spatial-circle-swap","spatial-learn","spatial-learn-polar" ,"spatial-learn-euclidean","spatial-circle","cluster",'spatial-both',"uniform","gaussian","spatial-squared","spatial-learn-ndim","spatial-learn-squared","block"]:
     # extract the model from the wrapper
     model=model.model
