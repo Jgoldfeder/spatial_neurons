@@ -213,7 +213,7 @@ def compute_distance_matrix(N, M, A, B, D,cache_dir="cache"):
     return distance_matrix
 
 class SpatialNet(nn.Module):
-    def __init__(self, model, A, B, D, spatial_cost_scale=1,device="cuda",circle=False,cluster=-1,block_group=-1,distribution="spatial"):
+    def __init__(self, model, A, B, D, spatial_cost_scale=1,device="cuda",circle=False,cluster=-1,block_group=-1,block_binary=False,distribution="spatial"):
         super(SpatialNet, self).__init__()
         self.model = model
         self.linear_layers = []
@@ -228,6 +228,7 @@ class SpatialNet(nn.Module):
         self.circle = circle
         self.cluster=cluster
         self.block_group=block_group  # Block size for block mode (separate from cluster)
+        self.block_binary=block_binary  # Use binary costs (0.1 diagonal, 1.0 off-diagonal)
         self.spatial_cost_scale = spatial_cost_scale  # Scaling factor for spatial cost
         self.device=device
         self.distribution=distribution
@@ -251,7 +252,8 @@ class SpatialNet(nn.Module):
                 N = layer.in_features
                 M = layer.out_features
                 if self.distribution == 'block' and self.block_group > 0:
-                    distance_matrix = block_matrix.block_distance_matrix(M, N, group=self.block_group, device=self.device)
+                    mode = "binary" if self.block_binary else "scale_match"
+                    distance_matrix = block_matrix.block_distance_matrix(M, N, group=self.block_group, mode=mode, device=self.device)
                 elif self.cluster > 0:
                     distance_matrix = create_clustered_connectivity(N,M,self.cluster)
                 elif self.circle:

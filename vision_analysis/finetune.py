@@ -75,8 +75,13 @@ elif mode.startswith('group') and mode != "gaussian":  # avoid matching "gaussia
 
 cluster = -1
 block_group = -1
+block_binary = False
 if mode.startswith('block'):
-    block_group = int(mode.split("-")[1])
+    parts = mode.split("-")
+    block_group = int(parts[1])
+    # Check for binary mode: block-32-b
+    if len(parts) > 2 and parts[2] == 'b':
+        block_binary = True
     mode = "block"
 
 if mode.startswith('cluster'):
@@ -93,7 +98,12 @@ A = 20.0
 B = 20.0
 D = 1.0 
 
-if mode.startswith('spatial-swap'):
+if mode.startswith('spatial-circle-swap'):
+    if len(mode.split("-")) > 3:
+        D = float(mode.split("-")[3])
+    mode = "spatial-circle-swap"
+    print("D=",D)
+elif mode.startswith('spatial-swap'):
     if len(mode.split("-")) > 2:
         A = float(mode.split("-")[2])
         B = float(mode.split("-")[2])
@@ -119,7 +129,7 @@ if mode in ["spatial","spatial-swap","spatial-circle-swap","spatial-circle","clu
     if mode in ["uniform","gaussian","block"]:
         distribution = mode
     use_circle = mode in ["spatial-circle","spatial-circle-swap"]
-    model = spatial_wrapper_swap.SpatialNet(model,A, B, D,circle=use_circle,cluster=cluster,block_group=block_group,distribution=distribution)
+    model = spatial_wrapper_swap.SpatialNet(model,A, B, D,circle=use_circle,cluster=cluster,block_group=block_group,block_binary=block_binary,distribution=distribution)
 if mode in ['spatial-learn','spatial-both',"spatial-learn-polar" ,"spatial-learn-euclidean","spatial-learn-squared"]:
     use_polar = mode in ["spatial-learn-polar"]
     use_euclidean = mode in ["spatial-learn-euclidean"]

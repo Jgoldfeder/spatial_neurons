@@ -1,7 +1,7 @@
 import torch
 from typing import Literal, Optional
 
-Mode = Literal["center_shift", "scale_match", "pad_square", "wrap"]
+Mode = Literal["center_shift", "scale_match", "pad_square", "wrap", "binary"]
 
 def block_distance_matrix(
     x: int,
@@ -22,6 +22,7 @@ def block_distance_matrix(
       2) scale_match: scale the longer axis so "diagonal" covers the rectangle smoothly.
       3) pad_square: pad the short axis with dummy blocks to make it square, then crop.
       4) wrap: treat blocks on each axis as circular (torus distance), useful for periodicity.
+      5) binary: uses wrap logic but returns binary costs (0.1 for diagonal, 1.0 for off-diagonal).
 
     Args:
       x, y: matrix dims
@@ -118,6 +119,27 @@ def block_distance_matrix(
         # then +1 to keep your "1 on the diagonal-band" convention.
         scaled = circ_dist * max(max(nx, ny) - 1, 1)
         M = scaled.to(dtype) + 1
+        return M
+
+    elif mode == "binary":
+        # Binary mode: creates a "fat diagonal" that covers all blocks evenly.
+        # For a 48x12 block matrix: each of 12 input blocks maps to 4 output blocks.
+        # - 0.1 for diagonal blocks
+        # - 1.0 for off-diagonal blocks
+
+        if nx >= ny:
+            # More output blocks than input blocks
+            # Output block i is diagonal with input block floor(i * ny / nx)
+            a_mapped = torch.div(a * ny, nx, rounding_mode='floor')
+            is_diagonal = (a_mapped.unsqueeze(1) == b.unsqueeze(0))
+        else:
+            # More input blocks than output blocks
+            # Input block j is diagonal with output block floor(j * nx / ny)
+            b_mapped = torch.div(b * nx, ny, rounding_mode='floor')
+            is_diagonal = (a.unsqueeze(1) == b_mapped.unsqueeze(0))
+
+        M = torch.where(is_diagonal, torch.tensor(0.1, dtype=dtype, device=device),
+                        torch.tensor(1.0, dtype=dtype, device=device))
         return M
 
     else:
