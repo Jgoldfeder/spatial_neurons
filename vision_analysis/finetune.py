@@ -74,8 +74,9 @@ elif mode.startswith('group') and mode != "gaussian":  # avoid matching "gaussia
     mode = "group"
 
 cluster = -1
+block_group = -1
 if mode.startswith('block'):
-    cluster = int(mode.split("-")[1])
+    block_group = int(mode.split("-")[1])
     mode = "block"
 
 if mode.startswith('cluster'):
@@ -118,7 +119,7 @@ if mode in ["spatial","spatial-swap","spatial-circle-swap","spatial-circle","clu
     if mode in ["uniform","gaussian","block"]:
         distribution = mode
     use_circle = mode in ["spatial-circle","spatial-circle-swap"]
-    model = spatial_wrapper_swap.SpatialNet(model,A, B, D,circle=use_circle,cluster=cluster,distribution=distribution)
+    model = spatial_wrapper_swap.SpatialNet(model,A, B, D,circle=use_circle,cluster=cluster,block_group=block_group,distribution=distribution)
 if mode in ['spatial-learn','spatial-both',"spatial-learn-polar" ,"spatial-learn-euclidean","spatial-learn-squared"]:
     use_polar = mode in ["spatial-learn-polar"]
     use_euclidean = mode in ["spatial-learn-euclidean"]
@@ -154,7 +155,7 @@ def get_epochs(num_epochs: int) -> list[int]:
     return [int(round(i * step)) for i in range(10)]
 swap_epochs = get_epochs(num_epochs)
 
-for epoch in range(num_epochs*10):
+for epoch in range(num_epochs):
     if mode in ['spatial-learn','spatial-both',"spatial-learn-polar" ,"spatial-learn-euclidean","spatial-learn-ndim","spatial-learn-squared"]:
         # make sure neurons do not collapse or explode
         print(model.get_stats())
@@ -223,9 +224,6 @@ for epoch in range(num_epochs*10):
     print(f"Epoch [{epoch+1}/{num_epochs}] | Train Loss: {train_loss:.4f} | Train Acc: {train_acc:.2f}% "
           f"| Test Loss: {test_loss:.4f} | Test Acc: {test_acc:.2f}%")
     
-
-    get_perecent_small = util.get_percent_small_weights(model,threshold=0.001)
-    print("Percent weights below 0.001:",get_perecent_small)
 if mode in ["spatiall1","spatial","spatial-swap","spatial-circle-swap","spatial-learn","spatial-learn-polar" ,"spatial-learn-euclidean","spatial-circle","cluster",'spatial-both',"uniform","gaussian","spatial-squared","spatial-learn-ndim","spatial-learn-squared","block"]:
     # extract the model from the wrapper
     model=model.model

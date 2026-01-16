@@ -213,7 +213,7 @@ def compute_distance_matrix(N, M, A, B, D,cache_dir="cache"):
     return distance_matrix
 
 class SpatialNet(nn.Module):
-    def __init__(self, model, A, B, D, spatial_cost_scale=1,device="cuda",circle=False,cluster=-1,distribution="spatial"):
+    def __init__(self, model, A, B, D, spatial_cost_scale=1,device="cuda",circle=False,cluster=-1,block_group=-1,distribution="spatial"):
         super(SpatialNet, self).__init__()
         self.model = model
         self.linear_layers = []
@@ -227,6 +227,7 @@ class SpatialNet(nn.Module):
         self.D = D
         self.circle = circle
         self.cluster=cluster
+        self.block_group=block_group  # Block size for block mode (separate from cluster)
         self.spatial_cost_scale = spatial_cost_scale  # Scaling factor for spatial cost
         self.device=device
         self.distribution=distribution
@@ -249,7 +250,9 @@ class SpatialNet(nn.Module):
                 self.linear_layers.append(layer)
                 N = layer.in_features
                 M = layer.out_features
-                if self.cluster > 0:
+                if self.distribution == 'block' and self.block_group > 0:
+                    distance_matrix = block_matrix.block_distance_matrix(M, N, group=self.block_group, device=self.device)
+                elif self.cluster > 0:
                     distance_matrix = create_clustered_connectivity(N,M,self.cluster)
                 elif self.circle:
                     distance_matrix = compute_distance_matrix_circle(N, M, self.A, self.B, self.D)
@@ -257,8 +260,6 @@ class SpatialNet(nn.Module):
                     distance_matrix = torch.rand(M, N)
                 elif self.distribution == 'gaussian':
                     distance_matrix = torch.randn(M, N).abs()
-                elif self.distribution == 'block':
-                    distance_matrix = block_matrix.block_distance_matrix(M, N, group=self.cluster if self.cluster>0 else 32, device=self.device)
                 else:
                     distance_matrix = compute_distance_matrix(N, M, self.A, self.B, self.D)
                 self.linear_distance_matrices.append(distance_matrix)
