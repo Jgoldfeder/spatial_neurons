@@ -231,14 +231,21 @@ def run_trial(mode, hyperparams, training_config, device):
 
 
 def download_datasets():
-    """Download datasets once before starting trials."""
+    """Download datasets once before starting trials, with file lock to prevent concurrent downloads."""
     import torchvision
-    print("Downloading datasets...")
-    torchvision.datasets.CIFAR100(root='./data', train=True, download=True)
-    torchvision.datasets.CIFAR100(root='./data', train=False, download=True)
-    torchvision.datasets.CIFAR10(root='./data', train=True, download=True)
-    torchvision.datasets.CIFAR10(root='./data', train=False, download=True)
-    print("Datasets ready.")
+    import filelock
+
+    lock_path = './data/.download_lock'
+    os.makedirs('./data', exist_ok=True)
+
+    lock = filelock.FileLock(lock_path, timeout=600)
+    with lock:
+        print("Downloading datasets...")
+        torchvision.datasets.CIFAR100(root='./data', train=True, download=True)
+        torchvision.datasets.CIFAR100(root='./data', train=False, download=True)
+        torchvision.datasets.CIFAR10(root='./data', train=True, download=True)
+        torchvision.datasets.CIFAR10(root='./data', train=False, download=True)
+        print("Datasets ready.")
 
 
 def run_worker(server, worker_id, device, heartbeat_interval, retry_delay, max_retries):
