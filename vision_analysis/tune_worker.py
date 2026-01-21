@@ -56,11 +56,13 @@ class HeartbeatThread(threading.Thread):
         self.worker_id = worker_id
         self.interval = interval
         self.trial_id = None
+        self.study_name = None  # For multi-study manager
         self.progress = {}
         self.running = True
 
-    def set_trial(self, trial_id):
+    def set_trial(self, trial_id, study_name=None):
         self.trial_id = trial_id
+        self.study_name = study_name
         self.progress = {}
 
     def update_progress(self, info):
@@ -73,13 +75,18 @@ class HeartbeatThread(threading.Thread):
         while self.running:
             if self.trial_id is not None:
                 try:
+                    payload = {
+                        'trial_id': self.trial_id,
+                        'worker_id': self.worker_id,
+                        'progress': self.progress,
+                    }
+                    # Include study_name if set (for multi-study manager)
+                    if self.study_name:
+                        payload['study_name'] = self.study_name
+
                     response = requests.post(
                         f"{self.server_url}/heartbeat",
-                        json={
-                            'trial_id': self.trial_id,
-                            'worker_id': self.worker_id,
-                            'progress': self.progress,
-                        },
+                        json=payload,
                         timeout=10
                     )
                     if response.status_code != 200:
@@ -108,18 +115,23 @@ def get_trial(server_url, worker_id, max_retries=3):
                 raise
 
 
-def report_result(server_url, worker_id, trial_id, success, result, max_retries=3):
+def report_result(server_url, worker_id, trial_id, success, result, study_name=None, max_retries=3):
     """Report trial result to server with retries."""
     for attempt in range(max_retries):
         try:
+            payload = {
+                'trial_id': trial_id,
+                'worker_id': worker_id,
+                'success': success,
+                'result': result,
+            }
+            # Include study_name if set (for multi-study manager)
+            if study_name:
+                payload['study_name'] = study_name
+
             response = requests.post(
                 f"{server_url}/report",
-                json={
-                    'trial_id': trial_id,
-                    'worker_id': worker_id,
-                    'success': success,
-                    'result': result,
-                },
+                json=payload,
                 timeout=30
             )
             return response.json()
@@ -218,12 +230,26 @@ def run_trial(mode, hyperparams, training_config, device):
     }
 
 
+def download_datasets():
+    """Download datasets once before starting trials."""
+    import torchvision
+    print("Downloading datasets...")
+    torchvision.datasets.CIFAR100(root='./data', train=True, download=True)
+    torchvision.datasets.CIFAR100(root='./data', train=False, download=True)
+    torchvision.datasets.CIFAR10(root='./data', train=True, download=True)
+    torchvision.datasets.CIFAR10(root='./data', train=False, download=True)
+    print("Datasets ready.")
+
+
 def run_worker(server, worker_id, device, heartbeat_interval, retry_delay, max_retries):
     """Run a single worker loop for one GPU."""
     print(f"Worker ID: {worker_id}")
     print(f"Server: {server}")
     print(f"Device: {device}")
     print()
+
+    # Download datasets once before starting
+    download_datasets()
 
     # Start heartbeat thread
     heartbeat_thread = HeartbeatThread(server, worker_id, heartbeat_interval)
@@ -249,15 +275,18 @@ def run_worker(server, worker_id, device, heartbeat_interval, retry_delay, max_r
             hyperparams = trial_info['hyperparams']
             training_config = trial_info['training_config']
             mode = trial_info['mode']
+            study_name = trial_info.get('study_name')  # For multi-study manager
 
             print(f"\n[{worker_id}] {'='*50}")
+            if study_name:
+                print(f"[{worker_id}] Study: {study_name}")
             print(f"[{worker_id}] Starting trial {trial_id}")
             print(f"[{worker_id}] Mode: {mode}")
             print(f"[{worker_id}] Hyperparams: {hyperparams}")
             print(f"[{worker_id}] {'='*50}\n")
 
-            # Set trial for heartbeat
-            heartbeat_thread.set_trial(trial_id)
+            # Set trial for heartbeat (include study_name for multi-study manager)
+            heartbeat_thread.set_trial(trial_id, study_name)
 
             # Run trial
             try:
@@ -269,14 +298,14 @@ def run_worker(server, worker_id, device, heartbeat_interval, retry_delay, max_r
                 print(f"[{worker_id}]   Actual sparsity: {result['actual_sparsity']:.2f}%")
 
                 # Report success
-                report_result(server, worker_id, trial_id, True, result, max_retries)
+                report_result(server, worker_id, trial_id, True, result, study_name, max_retries)
 
             except Exception as e:
                 error_msg = f"{type(e).__name__}: {str(e)}\n{traceback.format_exc()}"
                 print(f"\n[{worker_id}] Trial {trial_id} failed: {error_msg}")
 
                 # Report failure
-                report_result(server, worker_id, trial_id, False, {'error': error_msg}, max_retries)
+                report_result(server, worker_id, trial_id, False, {'error': error_msg}, study_name, max_retries)
 
             # Clear trial from heartbeat
             heartbeat_thread.set_trial(None)

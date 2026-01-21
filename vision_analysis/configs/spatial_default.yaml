@@ -3,18 +3,18 @@ name: spatial
 mode: spatial
 
 # Hyperparameter search ranges
-gamma_spatial_min: 10
-gamma_spatial_max: 1000
-gamma_l1_min: 0
-gamma_l1_max: 5000
-D_min: 0.1
-D_max: 10.0
+gamma_spatial_min: 1
+gamma_spatial_max: 100000
+gamma_l1_min: 1
+gamma_l1_max: 500000
+D_min: 0.01
+D_max: 1000
 A: 20.0
 B: 20.0
 log_scale: true
 
 # Training settings
-trials: 50
+trials: 100
 epochs: 10
 lr: 0.0001
 batch_size: 128
