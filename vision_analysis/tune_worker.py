@@ -231,21 +231,14 @@ def run_trial(mode, hyperparams, training_config, device):
 
 
 def download_datasets():
-    """Download datasets once before starting trials, with file lock to prevent concurrent downloads."""
+    """Download datasets once before spawning workers."""
     import torchvision
-    import filelock
-
-    lock_path = './data/.download_lock'
-    os.makedirs('./data', exist_ok=True)
-
-    lock = filelock.FileLock(lock_path, timeout=600)
-    with lock:
-        print("Downloading datasets...")
-        torchvision.datasets.CIFAR100(root='./data', train=True, download=True)
-        torchvision.datasets.CIFAR100(root='./data', train=False, download=True)
-        torchvision.datasets.CIFAR10(root='./data', train=True, download=True)
-        torchvision.datasets.CIFAR10(root='./data', train=False, download=True)
-        print("Datasets ready.")
+    print("Downloading datasets...")
+    torchvision.datasets.CIFAR100(root='./data', train=True, download=True)
+    torchvision.datasets.CIFAR100(root='./data', train=False, download=True)
+    torchvision.datasets.CIFAR10(root='./data', train=True, download=True)
+    torchvision.datasets.CIFAR10(root='./data', train=False, download=True)
+    print("Datasets ready.")
 
 
 def run_worker(server, worker_id, device, heartbeat_interval, retry_delay, max_retries):
@@ -254,9 +247,6 @@ def run_worker(server, worker_id, device, heartbeat_interval, retry_delay, max_r
     print(f"Server: {server}")
     print(f"Device: {device}")
     print()
-
-    # Download datasets once before starting
-    download_datasets()
 
     # Start heartbeat thread
     heartbeat_thread = HeartbeatThread(server, worker_id, heartbeat_interval)
@@ -340,6 +330,9 @@ def get_num_gpus():
 
 def main():
     args = parse_args()
+
+    # Download datasets once before spawning workers
+    download_datasets()
 
     # Determine number of GPUs
     num_gpus = args.num_gpus
