@@ -220,19 +220,21 @@ def get_training_config(config):
 
 
 def get_study_with_fewest_trials():
-    """Get the study with the fewest completed trials that still needs work."""
+    """Get the study with the fewest total trials (completed + running) that still needs work."""
     with lock:
         eligible = []
         for name, info in studies.items():
             completed = len([t for t in info['study'].trials if t.state == optuna.trial.TrialState.COMPLETE])
+            running = len(info['active_trials'])
+            total = completed + running
             target = info['config']['trials']
             if completed < target:
-                eligible.append((name, completed, info))
+                eligible.append((name, total, info))
 
         if not eligible:
             return None
 
-        # Sort by completed count, return the one with fewest
+        # Sort by total count (completed + running), return the one with fewest
         eligible.sort(key=lambda x: x[1])
         return eligible[0][2]
 
