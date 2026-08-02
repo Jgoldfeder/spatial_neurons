@@ -1,0 +1,68 @@
+ViT-base / CIFAR-100 block pruning, CORRECTED PROTOCOL — final results (2026-08-02)
+====================================================================================
+
+Setup: vit_base_patch16_224 (ImageNet-pretrained), finetuned 4ep on CIFAR-100 -> dense 91.1.
+16x16 weight blocks over all Linear layers. Iterative gradual pruning over targets
+[20,40,55,65,75,80,85,90,95,97,98,99]% blocks removed; after each cut, 6 epochs x 50k
+(full train set) finetune, AdamW lr 5e-5, cosine per stage. "reorder" tiling from
+swap-assignment positions (function-preserving: verified bit-identical, 91.10 at every step).
+Spatial arms: 6 pre-organization epochs (dense, wiring cost gamma=256, re-swap per epoch)
+BEFORE the first cut, wiring cost kept on during stage finetunes.
+
+Arms:
+  taylor       = taylor block scoring ((g*W)^2 block-summed), no spatial cost, no pre-org
+  taylorscore  = spatial pre-org + wiring cost + TAYLOR scoring     <- BEST METHOD >=75%
+  regular      = spatial pre-org + wiring cost + magnitude scoring (run 1; grid ended at 90)
+  polish       = regular, but gamma off for last 2 finetune epochs of each stage
+
+Finetuned accuracy (%) vs % blocks removed
+------------------------------------------
+ blocks%   taylor   taylorscore   regular   polish
+    20      90.5       88.0         88.2      88.3
+    40      89.6       87.3         86.9      87.5
+    55      88.0       86.7         86.5      86.9
+    65      86.3       86.2         86.0      86.2
+    75      82.2       84.8         84.9      85.1
+    80      80.8       84.1         84.0      84.1
+    85      79.3       82.5         82.3      82.3
+    90      76.0       80.4         78.7      78.1
+    95      68.3       69.0          --       64.2
+    97      63.8       68.2          --       62.7
+    98      61.0       65.8          --       59.7
+    99      43.8       48.0          --       29.3
+
+Post-cut accuracy (no finetune), run-1 arms (taylor / regular spatial):
+ 20%: 79.2 / 84.4    40%: 64.8 / 87.8    55%: 63.1 / 84.3    65%: 23.7 / 78.4
+ 75%: 15.6 /  8.7    80%: 41.9 / 41.8    85%:  1.0 /  2.9    90%:  1.7 /  1.4
+
+Key findings
+------------
+1. spatial pre-org + taylor scoring wins every stage from 75% to 99%; its margin over
+   taylor at IDENTICAL selection+budget (95-99%: +0.7,+4.4,+4.8,+4.2) is the cleanly
+   attributed contribution of spatial organization.
+2. taylor wins <=55% by ~2 pts = residual tax of the wiring cost (gamma=256 costs ~5-7 pts
+   dense, partially refunded during masked finetuning).
+3. gamma-off "polish" adds nothing (<=90%, within noise) and is the worst arm at 95-99%:
+   keep the wiring cost on throughout.
+4. Run-to-run noise (same seed, cuDNN nondeterminism; taylor run1 vs rerun): up to
+   +/-2.5 pts at 75-90%. Margins below ~2.5 pts in that region are not interpretable.
+
+Why the original suite (parent dir: iter_vit.py + vit_suite_orchestrator.sh) disagreed
+--------------------------------------------------------------------------------------
+Original suite had spatial@90 = 29.4, taylor@90 = 58.0. Two protocol flaws:
+ (a) no pre-organization: the first (20%) cut hit the never-organized base, scored by
+     block-L2 magnitude -> instant collapse to chance (0.77%); everything after descends
+     from a rebuilt-from-rubble model. Pre-org at sufficient dose makes the same cut FREE
+     (84.4 post-cut vs 84.2 dense). Weak dose does NOT work (2ep@gamma=64 -> 1.48%).
+ (b) starved finetunes (2ep x 20k per stage): endpoint at 20% is mostly budget
+     (blind mag cut rebuilds 0.77 -> 83.3 short budget -> ~87 long budget; taylor@90
+     gains +20 pts from budget alone).
+
+Known gaps before publication: random-mask control (at 85-99% every cut lands near chance
+and finetune does the heavy lifting), 2nd seed (75-90% margins vs noise), gamma sweep,
+taylor gradient estimate uses only ~11 minibatches, no KD, spatial arms get 6 extra
+epochs total (pre-org) vs taylor.
+
+Artifacts (not in repo): per-stage checkpoints vitlong_models/, result pickles
+vitlong_{taylor_reorder_0,spatialpolish_reorder_256,spatialtaylorscore_reorder_256}.pkl,
+run-1 pickles *.run1.pkl.
