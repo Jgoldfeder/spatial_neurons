@@ -52,9 +52,12 @@ def base_model():
     if ARCH=='vit':
         m=timm.create_model('vit_base_patch16_224',pretrained=False,num_classes=100)
         m.load_state_dict(torch.load(OUT+'/vitbase_cifar100_base.pt',map_location='cpu'))
-    else:
+    elif ARCH=='rn50':
         m=torchvision.models.resnet50(); m.fc=nn.Linear(2048,100)
         m.load_state_dict(torch.load(OUT+'/rn50_cifar100_base.pt',map_location='cpu'))
+    else:
+        m=torchvision.models.resnet18(); m.fc=nn.Linear(512,100)
+        m.load_state_dict(torch.load(OUT+'/rn18_cifar100_base.pt',map_location='cpu'))
     return m.to(dev)
 def regl(m): return [x for _,x in m.named_modules() if isinstance(x,(nn.Conv2d,nn.Linear))]
 def wmat(l): return l.weight.view(l.weight.shape[0],-1) if isinstance(l,nn.Conv2d) else l.weight
@@ -164,21 +167,21 @@ else: D=tiling(mb,None)
 usenet=net if METHOD=='spatial' else None
 lays=regl(mb)
 
-# ---------------- pre-organization for regularizer methods (spatial AND glasso) ----------------
-if METHOD in ('spatial','glasso'):
-    opt=torch.optim.AdamW(mb.parameters(),5e-5,weight_decay=0.05)
-    for e in range(PRE_ep):
-        mb.train()
-        for bi,(x,y) in enumerate(trl):
-            x,y=x.to(dev),y.to(dev)
-            loss=F.cross_entropy((net(x) if METHOD=='spatial' else mb(x)),y)
-            loss=loss+(net.get_cost() if METHOD=='spatial' else HP*gl_pen(lays,D))
-            loss.backward(); opt.step(); opt.zero_grad()
-            if SMOKE and bi>=30: break
-        P('pre-org epoch %d dense %.2f'%(e,acc(mb)))
-        if METHOD=='spatial': net.swap(block=256)
-    if METHOD=='spatial': D=tiling(mb,net)
-    torch.save(mb.state_dict(),'%s/%s_preorg.pt'%(CKDIR,TAG))
+# ---------------- phase-0 for ALL arms (budget parity): reg arms use their penalty, others plain CE ----------------
+opt=torch.optim.AdamW(mb.parameters(),5e-5,weight_decay=0.05)
+for e in range(PRE_ep):
+    mb.train()
+    for bi,(x,y) in enumerate(trl):
+        x,y=x.to(dev),y.to(dev)
+        loss=F.cross_entropy((net(x) if METHOD=='spatial' else mb(x)),y)
+        if METHOD=='spatial': loss=loss+net.get_cost()
+        elif METHOD=='glasso': loss=loss+HP*gl_pen(lays,D)
+        loss.backward(); opt.step(); opt.zero_grad()
+        if SMOKE and bi>=30: break
+    P('phase-0 epoch %d dense %.2f'%(e,acc(mb)))
+    if METHOD=='spatial': net.swap(block=256)
+if METHOD=='spatial': D=tiling(mb,net)
+torch.save(mb.state_dict(),'%s/%s_phase0.pt'%(CKDIR,TAG))
 
 masks=[torch.ones_like(wmat(l)) for l in lays]; out=[]
 
@@ -190,8 +193,8 @@ if METHOD=='movement':
     prev=0.0
     for target in LEV:
         opt=torch.optim.AdamW([{'params':mb.parameters(),'lr':5e-5},{'params':S,'lr':1e-2}],weight_decay=0.05)
-        steps=F_ep*len(trl); st=0
-        for e in range(F_ep):
+        RAMP=max(1,F_ep-2); steps=RAMP*len(trl); st=0
+        for e in range(RAMP):
             mb.train()
             for bi,(x,y) in enumerate(trl):
                 x,y=x.to(dev),y.to(dev)
@@ -221,7 +224,7 @@ if METHOD=='movement':
         for (Ro,Co),s,msk in zip(D,S,masks): msk.copy_(1.-(Ro@(s<=thr).float()@Co.t()).clamp(0,1))
         for l,msk in zip(lays,masks):
             with torch.no_grad(): l.weight.mul_(emask(l,msk))
-        finetune(mb,lays,masks,None,D,max(1,F_ep//3))          # brief stabilization at frozen mask
+        finetune(mb,lays,masks,None,D,min(2,F_ep))              # stabilize at frozen mask (total = F_ep/stage)
         a=acc(mb); bs_=blocksp(lays,D); out.append((bs_,a))
         P('tgt %d%% | blk-sp %.1f%% | acc %.1f'%(target,bs_,a))
         import pickle; pickle.dump(out,open('%s/%s.pkl'%(OUT,TAG),'wb'))
@@ -229,9 +232,12 @@ if METHOD=='movement':
 
 # ============================ RIGL ============================
 elif METHOD=='rigl':
-    # per-target block-DST from the base (not iterative): drop |W|-block, grow |g|-block
+    # per-target block-DST from phase-0 model; budget matched to the CUMULATIVE epochs
+    # the iterative arms spent to reach the same target
     base_sd=copy.deepcopy(mb.state_dict())
-    for target in LEV:
+    RLEV=[t for t in ([55,75,90,97] if not SMOKE else [20,40]) if t in LEV]
+    for target in RLEV:
+        EP_T=F_ep*(LEV.index(target)+1)
         mb.load_state_dict(base_sd)
         masks=[torch.ones_like(wmat(l)) for l in lays]
         # random init mask at target
@@ -246,8 +252,8 @@ elif METHOD=='rigl':
         for l,msk in zip(lays,masks):
             with torch.no_grad(): l.weight.mul_(emask(l,msk))
         opt=torch.optim.AdamW(mb.parameters(),5e-5,weight_decay=0.05)
-        steps=F_ep*len(trl); st=0; UPD=100
-        for e in range(F_ep):
+        steps=EP_T*len(trl); st=0; UPD=100
+        for e in range(EP_T):
             mb.train()
             for bi,(x,y) in enumerate(trl):
                 x,y=x.to(dev),y.to(dev)
