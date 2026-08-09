@@ -8,7 +8,7 @@ from torch.utils.data import DataLoader
 # ============================================================================
 # v3: corrected + strengthened block-sparsity baselines. One script, all arms.
 #   ARCH   : vit | rn50
-#   METHOD : mag | taylor | spatial | glasso | movement | rigl
+#   METHOD : mag | taylor | spatial | glasso | l1 | movement | rigl
 #   TIL    : reorder | contig
 #   HP     : gamma (spatial) / lambda (glasso) / unused otherwise (pass 0)
 #   VARIANT: '' | taylorscore (taylor criterion on a reg-trained model) | polish
@@ -87,6 +87,10 @@ def tiling(m,net=None):
             go,gi=ids(xo,yo),ids(xi,yi)
             D.append((onehot(go,int(go.max()+1)),onehot(gi,int(gi.max()+1))))
     return D
+def l1_pen(lays):
+    t=0.;n=0
+    for l in lays: t=t+l.weight.abs().sum(); n+=l.weight.numel()
+    return t/n
 def gl_pen(lays,D):
     tot=0.;n=0
     for l,(Ro,Co) in zip(lays,D):
@@ -146,7 +150,7 @@ def finetune(mb, lays, masks, usenet, D, epochs, gl=False):
             x,y=x.to(dev),y.to(dev)
             loss=F.cross_entropy((usenet(x) if usenet else mb(x)),y)
             if usenet is not None and not (VARIANT=='polish' and e>=epochs-2): loss=loss+usenet.get_cost()
-            if gl: loss=loss+HP*gl_pen(lays,D)
+            if gl: loss=loss+(HP*gl_pen(lays,D) if METHOD=='glasso' else HP*l1_pen(lays))
             loss.backward(); opt.step(); sched.step(); opt.zero_grad()
             with torch.no_grad():
                 for l,msk in zip(lays,masks): l.weight.mul_(emask(l,msk))
@@ -176,6 +180,7 @@ for e in range(PRE_ep):
         loss=F.cross_entropy((net(x) if METHOD=='spatial' else mb(x)),y)
         if METHOD=='spatial': loss=loss+net.get_cost()
         elif METHOD=='glasso': loss=loss+HP*gl_pen(lays,D)
+        elif METHOD=='l1': loss=loss+HP*l1_pen(lays)
         loss.backward(); opt.step(); opt.zero_grad()
         if SMOKE and bi>=30: break
     P('phase-0 epoch %d dense %.2f'%(e,acc(mb)))
@@ -294,7 +299,7 @@ else:
         scores=layer_normalize(scores)
         prune_to(target,lays,D,masks,scores)
         P('tgt %d%% | post-cut acc %.2f'%(target,acc(mb)))
-        finetune(mb,lays,masks,usenet,D,F_ep,gl=(METHOD=='glasso'))
+        finetune(mb,lays,masks,usenet,D,F_ep,gl=(METHOD=='glasso') or (METHOD=='l1'))
         a=acc(mb); bs_=blocksp(lays,D); out.append((bs_,a))
         P('tgt %d%% | blk-sp %.1f%% | acc %.1f'%(target,bs_,a))
         import pickle; pickle.dump(out,open('%s/%s.pkl'%(OUT,TAG),'wb'))
