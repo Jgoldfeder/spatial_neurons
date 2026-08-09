@@ -44,9 +44,9 @@ CKDIR=OUT+'/v3_models'; os.makedirs(CKDIR,exist_ok=True)
 
 tr=T.Compose([T.Resize(R),T.RandomHorizontalFlip(),T.ToTensor(),T.Normalize((.5,.5,.5),(.5,.5,.5))])
 te=T.Compose([T.Resize(R),T.ToTensor(),T.Normalize((.5,.5,.5),(.5,.5,.5))])
-full=torchvision.datasets.CIFAR100(OUT+'/data',train=True,transform=tr)
+full=torchvision.datasets.CIFAR100(OUT+'/data',train=True,transform=tr,download=True)
 trl=DataLoader(full,64,shuffle=True,num_workers=8,pin_memory=True)
-tel=DataLoader(torchvision.datasets.CIFAR100(OUT+'/data',train=False,transform=te),256,num_workers=4)
+tel=DataLoader(torchvision.datasets.CIFAR100(OUT+'/data',train=False,transform=te,download=True),256,num_workers=4)
 
 def base_model():
     if ARCH=='vit':
