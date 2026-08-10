@@ -37,6 +37,24 @@ def acc(m):
     for x,y in tel:
         x,y=x.to(dev),y.to(dev); c+=(m(x).argmax(1)==y).sum().item(); t+=y.numel()
     return 100.*c/t
+def onehot(ids,n):
+    O=torch.zeros(len(ids),n,device=dev); O[torch.arange(len(ids)),torch.as_tensor(ids,device=dev,dtype=torch.long)]=1.; return O
+def net_tiling(net):
+    D=[]
+    for li in range(len(net.layers)):
+        xi,yi,xo,yo=net.planes(li)
+        def ids(x,y):
+            k=np.stack([x.detach().cpu().numpy(),y.detach().cpu().numpy()],1)
+            _,inv=np.unique(k,axis=0,return_inverse=True); return inv
+        go,gi=ids(xo,yo),ids(xi,yi)
+        D.append((onehot(go,int(go.max()+1)),onehot(gi,int(gi.max()+1))))
+    return D
+def wmat(l): return l.weight.view(l.weight.shape[0],-1) if isinstance(l,nn.Conv2d) else l.weight
+def gl_pen(lays,D):
+    t=0.;n=0
+    for l,(Ro,Co) in zip(lays,D):
+        bn=torch.sqrt((Ro.t()@(wmat(l)**2)@Co)+1e-12); t=t+bn.sum(); n+=bn.numel()
+    return t/n
 def l1_pen(lays):
     t=0.;n=0
     for l in lays: t=t+l.weight.abs().sum(); n+=l.weight.numel()
@@ -44,18 +62,22 @@ def l1_pen(lays):
 
 t0=time.time()
 mb=base_model(); lays=regl(mb)
-net=None
+net=None; GD=None
 if METHOD=='spatial':
     net=swc.SpatialCNN(mb,gamma=HP,device=dev,block_size=B).to(dev); net.swap(block=256)
+elif METHOD=='glasso':
+    net=swc.SpatialCNN(mb,gamma=64.,device=dev,block_size=B).to(dev); net.swap(block=256)
+    GD=net_tiling(net)
 opt=torch.optim.AdamW(mb.parameters(),5e-5,weight_decay=0.05)
 sched=torch.optim.lr_scheduler.CosineAnnealingLR(opt,EP*len(trl))
 for e in range(EP):
     mb.train()
     for x,y in trl:
         x,y=x.to(dev),y.to(dev)
-        loss=F.cross_entropy((net(x) if net else mb(x)),y)
+        loss=F.cross_entropy((net(x) if METHOD=='spatial' else mb(x)),y)
         if METHOD=='spatial': loss=loss+net.get_cost()
         elif METHOD=='l1': loss=loss+HP*l1_pen(lays)
+        elif METHOD=='glasso': loss=loss+HP*gl_pen(lays,GD)
         loss.backward(); opt.step(); sched.step(); opt.zero_grad()
     if METHOD=='spatial': net.swap(block=256)
     print('[%s] epoch %d done (%.0fs)'%(TAG,e,time.time()-t0),flush=True)
