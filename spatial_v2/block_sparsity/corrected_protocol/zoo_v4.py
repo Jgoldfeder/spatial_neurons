@@ -23,6 +23,9 @@ def base_model():
     if ARCH=='vit':
         import timm; m=timm.create_model('vit_base_patch16_224',pretrained=False,num_classes=100)
         m.load_state_dict(torch.load(OUT+'/vitbase_cifar100_base.pt',map_location='cpu'))
+    elif ARCH=='vittiny':
+        import timm; m=timm.create_model('vit_tiny_patch16_224',pretrained=False,num_classes=100)
+        m.load_state_dict(torch.load(OUT+'/vittiny_cifar100_base.pt',map_location='cpu'))
     elif ARCH=='rn50':
         m=torchvision.models.resnet50(); m.fc=nn.Linear(2048,100)
         m.load_state_dict(torch.load(OUT+'/rn50_cifar100_base.pt',map_location='cpu'))

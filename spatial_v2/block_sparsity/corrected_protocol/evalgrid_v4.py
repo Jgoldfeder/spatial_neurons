@@ -22,6 +22,8 @@ tel=DataLoader(torchvision.datasets.CIFAR100(OUT+'/data',train=False,transform=t
 def base_arch():
     if ARCH=='vit':
         import timm; return timm.create_model('vit_base_patch16_224',pretrained=False,num_classes=100)
+    if ARCH=='vittiny':
+        import timm; return timm.create_model('vit_tiny_patch16_224',pretrained=False,num_classes=100)
     if ARCH=='rn50':
         m=torchvision.models.resnet50(); m.fc=nn.Linear(2048,100); return m
     m=torchvision.models.resnet18(); m.fc=nn.Linear(512,100); return m
