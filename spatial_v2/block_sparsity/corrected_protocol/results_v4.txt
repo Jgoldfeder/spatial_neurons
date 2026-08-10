@@ -1,0 +1,56 @@
+ResNet-18 / CIFAR-100 factorized block-sparsity study (v4) — FINAL (2026-08-09)
+================================================================================
+Protocol (fully budget-controlled, no iterative confound):
+  Zoo: every model = shared rn18 base (80.9) + 4 epochs training, identical optimizer
+       (AdamW 5e-5, wd 0.05, cosine); only the regularizer differs.
+  Grid: model x criterion {mag, taylor} x tiling {contig, swap, TETRIS-style} x
+        target {80,90,95,97,98,99}% of 64x64 blocks: ONE-SHOT cut -> post-cut acc ->
+        exactly 1 epoch plain finetune -> acc. Every cell identical treatment.
+  Tilings: contig = index blocks; swap = wiring-cost assignment (ours; one-shot on
+        base weights, or the saved co-trained layout for spatial/glasso models);
+        TETRIS-style = post-hoc balanced co-clustering of the trained weights
+        (reimplementation of the tile-packing idea, 3 alternations).
+  Scores layer-l2-normalized; taylor = E[(gW)^2] over 50 minibatches.
+
+Zoo dose-response (dense acc / natural sparsity %):
+  plain 81.9/4.8
+  l1    300:81.6/20.6  1000:81.6/43.8  3000:80.4/69.6  10000:74.5/89.1  30000:61.3/96.5  100000:35.6/99.0
+  glasso  5:81.7/6.6     15:81.5/16.5    50:81.5/49.7    150:77.8/80.9    500:66.9/94.4
+  spatial 16:81.7/16.9   64:81.4/40.0   256:79.6/69.5   1024:72.8/88.5   4096:57.5/96.2  16384:30.5/98.7
+
+Key result 1 — TILING dominates and swap wins it:
+  contig << TETRIS <= swap for every model, both criteria.
+  Envelope @90 (best model, best crit): contig 29.8 | TETRIS 54.0 | swap 59.5.
+  swap - TETRIS grows with dose and depth (up to +14 at 95%); the gap exists for
+  ALL families (spatial > glasso > L1 in magnitude, differences few points).
+  => The swap-assignment tiling is the durable contribution: it upgrades every
+     pruning pipeline and beats a literature-style post-hoc packer. The gap being
+     largest for models trained against the layout is suggestive of co-design value
+     but is NOT spatial-exclusive (glasso shares much of it).
+
+Key result 2 — regularizer FAMILY barely matters once dosed fairly:
+  Envelopes (swap tiling, best criterion, best dose):
+            80     90     95     97     98     99
+  l1      68.1   56.1   37.2   23.9   12.5    3.0
+  glasso  70.6   59.5   40.2   23.6   10.6    4.2
+  spatial 68.4   57.1   38.5   24.9   14.5    4.9
+  Spreads 1-4 pts (single-seed noise is +/-1-2.5): glasso slightly best 80-95,
+  spatial slightly best 97-99. All three sweeps span under- to over-dosed with
+  interior envelope peaks (extension doses l1-100000 / spatial-16384 confirm turnover).
+
+Key result 3 — criterion converges under good tiling:
+  taylor >> mag under contig (33.9 vs 12.0 @80, plain); near-tie under swap.
+
+History note: every earlier "spatial training wins big on ResNet" margin traced to a
+baseline defect (starved finetunes; taylor without per-batch squaring/layer norm;
+glasso under-dosed ~0 tax; L1 absent; dose grids edge-peaked; iterative protocol
+confounding sparsity with cumulative training). The v4 design removes all of these.
+ViT-side results (cut-survival at coarse blocks, corrected-protocol suite) were run
+under earlier designs and should be v4-replicated before being quoted.
+
+Caveats: single seed (family ordering unresolved within noise); TETRIS is a
+reimplementation; rn18@224 only; 1-epoch finetune (comparison numbers, not
+deployment numbers).
+
+Data: v4_zoo/*.pt (zoo checkpoints + positions), v4_zoo/*_grid.pkl (all 648 cells).
+Scripts: zoo_v4.py, evalgrid_v4.py (this directory).
