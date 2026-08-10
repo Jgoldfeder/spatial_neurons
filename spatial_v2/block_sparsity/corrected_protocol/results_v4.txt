@@ -54,3 +54,19 @@ deployment numbers).
 
 Data: v4_zoo/*.pt (zoo checkpoints + positions), v4_zoo/*_grid.pkl (all 648 cells).
 Scripts: zoo_v4.py, evalgrid_v4.py (this directory).
+
+Modularity Q (Louvain, |w|>1e-3, size-weighted; vision_analysis metric) on rn18 zoo:
+  model          dense    natsp%       Q
+  plain          81.9       4.8    0.049
+  glasso_50      81.5      49.7    0.134
+  spatial_256    79.6      69.5    0.218   } natsp-matched: L1 0.126 / glasso 0.134
+  l1_3000        80.4      69.6    0.126   }   -> spatial +73%
+  glasso_150     77.8      80.9    0.244
+  spatial_1024   72.8      88.5    0.355   } matched: L1 0.219 -> spatial +62%
+  l1_10000       74.5      89.1    0.219   }
+  glasso_500     66.9      94.4    0.398
+  spatial_4096   57.5      96.2    0.470   } matched: L1 0.360 -> spatial +31%
+  l1_30000       61.3      96.5    0.360   }
+Reading: Q rises with sparsity for all families (mechanical), but at MATCHED natsp
+spatial is systematically far more modular than L1 (glasso ~= L1). Spatial's
+distinctive product is structural organization, not extra pruning accuracy.
