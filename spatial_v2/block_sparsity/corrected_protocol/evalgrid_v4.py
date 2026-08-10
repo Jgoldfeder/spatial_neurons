@@ -12,7 +12,8 @@ ARCH, METHOD, HP = sys.argv[1], sys.argv[2], float(sys.argv[3])
 dev='cuda'; B=64; torch.manual_seed(0); np.random.seed(0)
 OUT=os.environ.get('SN_OUT','/home/judah/spatial_neurons')
 ZD=OUT+'/v4_zoo'; TAG='%s_%s_%g'%(ARCH,METHOD,HP)
-TARGETS=[80,90,95,97,98,99]; TNB=50
+TARGETS=[int(t) for t in os.environ.get('TARGETS','80,90,95,97,98,99').split(',')]; TNB=50
+SUF=os.environ.get('GRID_SUFFIX','')
 
 tr=T.Compose([T.Resize(224),T.RandomHorizontalFlip(),T.ToTensor(),T.Normalize((.5,.5,.5),(.5,.5,.5))])
 te=T.Compose([T.Resize(224),T.ToTensor(),T.Normalize((.5,.5,.5),(.5,.5,.5))])
@@ -146,5 +147,5 @@ for tname,D in TIL.items():
                 for l,w0 in zip(lays,orig): l.weight.copy_(w0)
             res[(tname,crit,tgt)]=(a0,a1)
             print('[%s] %s/%s tgt %d | post-cut %.2f | ft1 %.2f'%(TAG,tname,crit,tgt,a0,a1),flush=True)
-import pickle; pickle.dump({'dense':dense,'res':res},open('%s/%s_grid.pkl'%(ZD,TAG),'wb'))
+import pickle; pickle.dump({'dense':dense,'res':res},open('%s/%s_grid%s.pkl'%(ZD,TAG,SUF),'wb'))
 print('done',flush=True)
